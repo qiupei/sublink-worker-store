@@ -73,11 +73,14 @@ export const formLogicFn = (t) => {
             input: '',
             ownerToken: '',
             currentUser: null,
+            currentView: 'home',
+            editSubscriptionId: '',
             authMode: 'login',
             authUsername: '',
             authPassword: '',
             authMessage: '',
             authLoading: false,
+            authMenuOpen: false,
             subscriptionName: '',
             subscriptions: [],
             subscriptionsLoading: false,
@@ -121,6 +124,10 @@ export const formLogicFn = (t) => {
             parseDebounceTimer: null,
 
             init() {
+                const initialUrlParams = new URLSearchParams(window.location.search);
+                this.currentView = initialUrlParams.get('view') === 'subscriptions' ? 'subscriptions' : 'home';
+                this.editSubscriptionId = initialUrlParams.get('edit') || '';
+
                 // Load translations
                 if (window.APP_TRANSLATIONS) {
                     this.saveConfigText = window.APP_TRANSLATIONS.saveConfig;
@@ -145,7 +152,6 @@ export const formLogicFn = (t) => {
                 this.customUA = localStorage.getItem('userAgent') || '';
                 this.configEditor = localStorage.getItem('configEditor') || '';
                 this.configType = localStorage.getItem('configType') || 'singbox';
-                const initialUrlParams = new URLSearchParams(window.location.search);
                 this.currentConfigId = initialUrlParams.get('configId') || '';
 
                 // Load accordion states
@@ -160,6 +166,9 @@ export const formLogicFn = (t) => {
 
                 // Initialize rules
                 this.applyPredefinedRule();
+                if (this.currentView === 'home' && !this.editSubscriptionId) {
+                    this.resetSubscriptionDraft();
+                }
 
                 // Watchers to save state
                 this.$watch('input', val => {
@@ -415,12 +424,22 @@ export const formLogicFn = (t) => {
 
             resetSubscriptionDraft() {
                 this.activeSubscriptionId = '';
+                this.editSubscriptionId = '';
                 this.subscriptionToken = '';
                 this.stableLinks = null;
                 this.subscriptionName = '';
                 this.sources = [this.createEmptySource(0)];
                 this.managedNodes = [];
                 this.syncInputFromSources();
+            },
+
+            openNewSubscription() {
+                window.location.href = '/';
+            },
+
+            editSubscription(id) {
+                if (!id) return;
+                window.location.href = `/?edit=${encodeURIComponent(id)}`;
             },
 
             async loadCurrentUser() {
@@ -431,6 +450,9 @@ export const formLogicFn = (t) => {
                     this.currentUser = data.user || null;
                     if (this.currentUser) {
                         await this.loadSubscriptions();
+                        if (this.currentView === 'home' && this.editSubscriptionId) {
+                            await this.loadSubscription(this.editSubscriptionId);
+                        }
                     } else {
                         this.subscriptions = [];
                     }
@@ -459,7 +481,11 @@ export const formLogicFn = (t) => {
                     this.currentUser = data.user;
                     this.authPassword = '';
                     this.authMessage = this.authMode === 'register' ? '注册成功' : '登录成功';
+                    this.authMenuOpen = false;
                     await this.loadSubscriptions();
+                    if (this.currentView === 'home' && this.editSubscriptionId) {
+                        await this.loadSubscription(this.editSubscriptionId);
+                    }
                 } catch (error) {
                     console.error('Auth failed:', error);
                     this.authMessage = error?.message || '认证失败';
@@ -475,6 +501,7 @@ export const formLogicFn = (t) => {
                     console.error('Logout failed:', error);
                 }
                 this.currentUser = null;
+                this.authMenuOpen = false;
                 this.subscriptions = [];
                 this.activeSubscriptionId = '';
                 this.subscriptionToken = '';
@@ -490,6 +517,35 @@ export const formLogicFn = (t) => {
                     clash: `${origin}/sub/${token}/clash`,
                     surge: `${origin}/sub/${token}/surge`
                 };
+            },
+
+            formatDate(value) {
+                if (!value) return '';
+                const date = new Date(value);
+                if (Number.isNaN(date.getTime())) return '';
+                return date.toLocaleString('zh-CN', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            },
+
+            copySubscriptionLink(token, type = 'clash') {
+                const links = this.buildStableLinks(token);
+                const url = links?.[type] || links?.clash;
+                if (!url) return;
+                navigator.clipboard.writeText(url).then(() => {
+                    this.subscriptionMessage = '订阅链接已复制';
+                    setTimeout(() => {
+                        if (this.subscriptionMessage === '订阅链接已复制') {
+                            this.subscriptionMessage = '';
+                        }
+                    }, 2000);
+                }).catch(() => {
+                    this.subscriptionMessage = '复制失败';
+                });
             },
 
             getCustomRulesPayload() {
@@ -668,6 +724,29 @@ export const formLogicFn = (t) => {
                     if (!response.ok) throw new Error(await response.text());
                     this.subscriptionMessage = '订阅已删除';
                     this.resetSubscriptionDraft();
+                    await this.loadSubscriptions();
+                } catch (error) {
+                    console.error('Failed to delete subscription:', error);
+                    this.subscriptionMessage = `删除订阅失败：${error?.message || 'Unknown error'}`;
+                }
+            },
+
+            async deleteSubscriptionById(id) {
+                if (!this.currentUser) {
+                    this.subscriptionMessage = '请先登录';
+                    return;
+                }
+                if (!id) return;
+                if (!confirm('确定要删除这个订阅吗？')) return;
+                try {
+                    const response = await fetch(`/api/subscriptions/${encodeURIComponent(id)}`, {
+                        method: 'DELETE'
+                    });
+                    if (!response.ok) throw new Error(await response.text());
+                    if (this.activeSubscriptionId === id) {
+                        this.resetSubscriptionDraft();
+                    }
+                    this.subscriptionMessage = '订阅已删除';
                     await this.loadSubscriptions();
                 } catch (error) {
                     console.error('Failed to delete subscription:', error);

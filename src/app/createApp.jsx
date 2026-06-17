@@ -55,20 +55,21 @@ export function createApp(bindings = {}) {
         const t = c.get('t');
         const lang = resolveLanguage(c.get('lang'));
         const subtitle = APP_SUBTITLE[lang] || APP_SUBTITLE['zh-CN'];
+        const activeView = c.req.query('view') === 'subscriptions' ? 'subscriptions' : 'home';
 
         return c.html(
             <Layout title={t('pageTitle')} description={t('pageDescription')} keywords={t('pageKeywords')}>
                 <div class="flex flex-col min-h-screen">
-                    <Navbar />
+                    <Navbar activeView={activeView} />
                     <main class="flex-1">
-                        <div class="container mx-auto px-4 py-8 pt-24">
-                            <div class="max-w-4xl mx-auto">
-                                <div class="text-center mb-12 pt-8">
+                        <div class="max-w-[1500px] mx-auto px-4 py-8 pt-24">
+                            <div>
+                                <div class="text-center mb-8 pt-8">
                                     <h1 class="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4 tracking-tight">
-                                        {APP_NAME}
+                                        {activeView === 'subscriptions' ? '我的订阅' : APP_NAME}
                                     </h1>
                                     <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-                                        {subtitle}
+                                        {activeView === 'subscriptions' ? '管理你的固定订阅链接，快速编辑、复制和删除。' : subtitle}
                                     </p>
                                 </div>
                                 <Form t={t} lang={lang} />

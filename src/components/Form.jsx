@@ -107,69 +107,237 @@ export const Form = (props) => {
   const scriptContent = `
     window.APP_TRANSLATIONS = ${JSON.stringify(translations)};
     window.PREDEFINED_RULE_SETS = ${JSON.stringify(PREDEFINED_RULE_SETS)};
+    window.RULE_PREVIEW_META = ${JSON.stringify(UNIFIED_RULES.map(rule => ({
+      name: rule.name,
+      label: t(`outboundNames.${rule.name}`),
+      description: RULE_DESCRIPTIONS[rule.name] || '自定义分流规则',
+      action: getRuleAction(rule.name).label,
+      entries: getRuleEntries(rule).map(entry => ({
+        label: entry.label,
+        kind: entry.kind,
+        path: entry.path
+      }))
+    })))};
     window.APP_LANG = ${JSON.stringify(lang || 'zh-CN')};
     if (typeof __name === 'undefined') { var __name = function(fn) { return fn; }; }
     (${formLogicFn.toString()})();
   `;
 
   return (
-    <div x-data="formData()" x-init="init()" class="max-w-4xl mx-auto">
-      <div x-show="!currentUser" class="mb-8 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div class="flex items-center gap-3 mb-5">
-          <span class="w-9 h-9 rounded-lg bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 flex items-center justify-center">
-            <i class="fas fa-lock"></i>
-          </span>
-          <div>
-            <h2 class="text-lg font-bold text-gray-900 dark:text-white">用户账号</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400">登录后订阅信息会按用户隔离保存到 KV。</p>
+    <div x-data="formData()" x-init="init()" class="max-w-[1500px] mx-auto px-3 sm:px-4">
+      <template x-teleport="#navbar-auth">
+        <div class="relative" {...{'x-on:click.outside': 'authMenuOpen = false'}}>
+          {/* Logged in state */}
+          <div x-show="currentUser" class="h-10 pl-2 pr-3 rounded-xl bg-white/80 dark:bg-gray-800/80 border border-gray-200/80 dark:border-gray-700/80 hover:bg-gray-50 dark:hover:bg-gray-750 shadow-sm backdrop-blur text-gray-800 dark:text-gray-100 text-sm font-semibold flex items-center gap-2.5 transition-colors duration-200">
+            <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-primary-600 to-primary-400 text-white flex items-center justify-center font-bold text-xs uppercase shadow-sm select-none">
+              <span x-text="currentUser?.username ? currentUser.username[0] : 'U'"></span>
+            </div>
+            <span class="max-w-28 truncate font-medium text-gray-700 dark:text-gray-200" x-text="currentUser?.username"></span>
+            <div class="w-px h-4 bg-gray-200 dark:bg-gray-700"></div>
+            <button type="button" x-on:click="logout()" class="w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center" title="退出登录">
+              <i class="fas fa-right-from-bracket text-xs"></i>
+            </button>
+          </div>
+
+          {/* Logged out state */}
+          <div x-show="!currentUser" class="relative">
+            <button
+              type="button"
+              x-on:click="authMenuOpen = !authMenuOpen"
+              class="h-10 px-4 rounded-xl bg-white/80 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 shadow-sm backdrop-blur text-gray-700 dark:text-gray-200 hover:text-primary-600 dark:hover:text-primary-300 text-sm font-semibold flex items-center gap-2 transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-750"
+            >
+              <i class="far fa-circle-user text-base text-gray-400 dark:text-gray-500"></i>
+              <span>登录</span>
+            </button>
+
+            <div
+              x-cloak
+              x-show="authMenuOpen"
+              class="absolute right-0 top-12 w-[min(92vw,360px)] bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200/80 dark:border-gray-700/80 p-5 z-[70]"
+            >
+              <div class="flex gap-2 mb-4 justify-end">
+                <button
+                  type="button"
+                  x-on:click="authMode = 'login'; authMessage = ''"
+                  class="px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200"
+                  x-bind:class="authMode === 'login' ? 'bg-primary-600 text-white shadow-sm shadow-primary-600/10' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-250 hover:bg-gray-200 dark:hover:bg-gray-600'"
+                >
+                  登录
+                </button>
+                <button
+                  type="button"
+                  x-on:click="authMode = 'register'; authMessage = ''"
+                  class="px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200"
+                  x-bind:class="authMode === 'register' ? 'bg-primary-600 text-white shadow-sm shadow-primary-600/10' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-250 hover:bg-gray-200 dark:hover:bg-gray-600'"
+                >
+                  注册
+                </button>
+              </div>
+              <form {...{'x-on:submit.prevent': 'submitAuth()'}} class="grid grid-cols-1 gap-2.5">
+                <input
+                  type="text"
+                  x-model="authUsername"
+                  autocomplete="username"
+                  placeholder="用户名"
+                  class="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all text-sm outline-none"
+                />
+                <input
+                  type="password"
+                  x-model="authPassword"
+                  autocomplete="current-password"
+                  placeholder="密码"
+                  class="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all text-sm outline-none"
+                />
+                <button
+                  type="submit"
+                  x-bind:disabled="authLoading"
+                  class="mt-1 px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 font-semibold disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm shadow-sm transition-colors duration-200"
+                >
+                  <i class="fas" x-bind:class="authLoading ? 'fa-spinner fa-spin' : 'fa-right-to-bracket'"></i>
+                  <span x-text="authMode === 'register' ? '注册' : '登录'">登录</span>
+                </button>
+              </form>
+              <div x-show="authMessage" class="mt-2.5 text-xs text-red-500 dark:text-red-400 text-right" x-text="authMessage"></div>
+            </div>
           </div>
         </div>
-        <div class="flex gap-2 mb-4">
-          <button
-            type="button"
-            x-on:click="authMode = 'login'; authMessage = ''"
-            class="px-3 py-1.5 rounded-lg text-sm font-medium"
-            x-bind:class="authMode === 'login' ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
-          >
-            登录
-          </button>
-          <button
-            type="button"
-            x-on:click="authMode = 'register'; authMessage = ''"
-            class="px-3 py-1.5 rounded-lg text-sm font-medium"
-            x-bind:class="authMode === 'register' ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
-          >
-            注册
-          </button>
+      </template>
+
+      <div x-show="currentView === 'subscriptions'" class="space-y-6">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">订阅总览</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">查看订阅数量、节点规模、源数量，并进入编辑。</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              x-on:click="loadSubscriptions()"
+              x-bind:disabled="!currentUser || subscriptionsLoading"
+              class="px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 font-semibold disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <i class="fas" x-bind:class="subscriptionsLoading ? 'fa-spinner fa-spin' : 'fa-rotate'"></i>
+              刷新
+            </button>
+            <button
+              type="button"
+              x-on:click="openNewSubscription()"
+              class="px-4 py-2 rounded-xl bg-primary-600 text-white hover:bg-primary-700 font-semibold flex items-center gap-2 shadow-lg shadow-primary-600/20"
+            >
+              <i class="fas fa-plus"></i>
+              新建订阅
+            </button>
+          </div>
         </div>
-        <form {...{'x-on:submit.prevent': 'submitAuth()'}} class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3">
-          <input
-            type="text"
-            x-model="authUsername"
-            autocomplete="username"
-            placeholder="用户名"
-            class="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          />
-          <input
-            type="password"
-            x-model="authPassword"
-            autocomplete="current-password"
-            placeholder="密码（至少 8 位）"
-            class="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          />
-          <button
-            type="submit"
-            x-bind:disabled="authLoading"
-            class="px-5 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 font-medium disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            <i class="fas" x-bind:class="authLoading ? 'fa-spinner fa-spin' : 'fa-right-to-bracket'"></i>
-            <span x-text="authMode === 'register' ? '注册' : '登录'">登录</span>
-          </button>
-        </form>
-        <div x-show="authMessage" class="mt-3 text-sm text-gray-600 dark:text-gray-300" x-text="authMessage"></div>
+
+        <div x-show="subscriptionMessage" class="rounded-lg px-4 py-3 text-sm bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-200" x-text="subscriptionMessage"></div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
+            <div class="flex items-center gap-4">
+              <span class="w-12 h-12 rounded-xl bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 flex items-center justify-center">
+                <i class="fas fa-file-code"></i>
+              </span>
+              <div>
+                <div class="text-sm text-gray-500 dark:text-gray-400">订阅数量</div>
+                <div class="text-2xl font-bold text-gray-900 dark:text-white"><span x-text="subscriptions.length"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
+            <div class="flex items-center gap-4">
+              <span class="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-300 flex items-center justify-center">
+                <i class="fas fa-server"></i>
+              </span>
+              <div>
+                <div class="text-sm text-gray-500 dark:text-gray-400">节点总数</div>
+                <div class="text-2xl font-bold text-gray-900 dark:text-white"><span x-text="subscriptions.reduce((total, item) => total + (item.nodeCount || 0), 0)"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
+            <div class="flex items-center gap-4">
+              <span class="w-12 h-12 rounded-xl bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-300 flex items-center justify-center">
+                <i class="fas fa-link"></i>
+              </span>
+              <div>
+                <div class="text-sm text-gray-500 dark:text-gray-400">导入源</div>
+                <div class="text-2xl font-bold text-gray-900 dark:text-white"><span x-text="subscriptions.reduce((total, item) => total + (item.sourceCount || 0), 0)"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
+            <div class="flex items-center gap-4">
+              <span class="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-300 flex items-center justify-center">
+                <i class="fas fa-clock-rotate-left"></i>
+              </span>
+              <div>
+                <div class="text-sm text-gray-500 dark:text-gray-400">最近更新</div>
+                <div class="text-sm font-semibold text-gray-900 dark:text-white" x-text="formatDate(subscriptions[0]?.updatedAt) || '-'"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6">
+          <div class="flex items-center justify-between gap-4 mb-5">
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white">订阅列表</h2>
+            <span class="text-sm text-gray-500 dark:text-gray-400">共 <span x-text="subscriptions.length"></span> 个</span>
+          </div>
+          <div x-show="!currentUser" class="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+            登录后可以查看你的订阅列表。
+          </div>
+          <div x-show="currentUser && subscriptionsLoading" class="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+            <i class="fas fa-spinner fa-spin mr-2"></i>加载中...
+          </div>
+          <div x-show="currentUser && !subscriptionsLoading && subscriptions.length === 0" class="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 py-10 text-center">
+            <div class="text-gray-900 dark:text-white font-semibold">还没有订阅</div>
+            <button type="button" x-on:click="openNewSubscription()" class="mt-4 px-4 py-2 rounded-xl bg-primary-600 text-white hover:bg-primary-700 font-semibold inline-flex items-center gap-2">
+              <i class="fas fa-plus"></i>
+              新建订阅
+            </button>
+          </div>
+          <div class="space-y-3" x-show="currentUser && subscriptions.length > 0">
+            <template x-for="subscription in subscriptions" x-bind:key="subscription.id">
+              <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4">
+                <div class="flex flex-col xl:flex-row xl:items-center gap-4">
+                  <div class="flex items-start gap-3 min-w-0 flex-1">
+                    <span class="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 flex items-center justify-center shrink-0">
+                      <i class="fas fa-file-code"></i>
+                    </span>
+                    <div class="min-w-0">
+                      <div class="font-semibold text-gray-900 dark:text-white truncate" x-text="subscription.name"></div>
+                      <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        <span>创建 <span x-text="formatDate(subscription.createdAt)"></span></span>
+                        <span>更新 <span x-text="formatDate(subscription.updatedAt)"></span></span>
+                        <span><span x-text="subscription.enabledSourceCount"></span>/<span x-text="subscription.sourceCount"></span> 源</span>
+                        <span><span x-text="subscription.nodeCount || 0"></span> 节点</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap xl:justify-end gap-2">
+                    <button type="button" x-on:click="editSubscription(subscription.id)" class="px-3 py-2 rounded-lg bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 hover:bg-primary-100 dark:hover:bg-primary-900/40 text-sm font-semibold flex items-center gap-2">
+                      <i class="fas fa-gear"></i>
+                      编辑
+                    </button>
+                    <button type="button" x-on:click="copySubscriptionLink(subscription.token, 'clash')" class="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 text-sm font-semibold flex items-center gap-2">
+                      <i class="fas fa-copy"></i>
+                      复制 Clash
+                    </button>
+                    <button type="button" x-on:click="deleteSubscriptionById(subscription.id)" class="px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 text-sm font-semibold flex items-center gap-2">
+                      <i class="fas fa-trash"></i>
+                      删除
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
       </div>
 
-      <div class="space-y-8">
+      <div x-show="currentView === 'home'" class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)] gap-6 items-start">
+      <section class="space-y-6 min-w-0">
 
       {/* Subscription Workspace */}
       <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 transition-all duration-300 hover:shadow-md">
@@ -184,13 +352,6 @@ export const Form = (props) => {
             <p class="text-sm text-gray-500 dark:text-gray-400">保存多源配置，生成固定订阅链接，后续修改无需更换客户端地址。</p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <div x-show="currentUser" class="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium flex items-center gap-2">
-              <i class="fas fa-user"></i>
-              <span x-text="currentUser?.username"></span>
-              <button type="button" x-on:click="logout()" class="ml-1 text-gray-400 hover:text-red-500" title="退出登录">
-                <i class="fas fa-right-from-bracket"></i>
-              </button>
-            </div>
             <button
               type="button"
               x-on:click="resetSubscriptionDraft()"
@@ -199,61 +360,10 @@ export const Form = (props) => {
               <i class="fas fa-plus"></i>
               新建
             </button>
-            <button
-              type="button"
-              x-on:click="saveSubscription()"
-              x-bind:disabled="savingSubscription || !currentUser"
-              class="px-3 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              <i class="fas" x-bind:class="savingSubscription ? 'fa-spinner fa-spin' : 'fa-save'"></i>
-              <span x-text="activeSubscriptionId ? '更新订阅' : '保存订阅'">保存订阅</span>
-            </button>
-            <button
-              type="button"
-              x-show="activeSubscriptionId"
-              x-on:click="deleteSubscription()"
-              class="px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 text-sm font-medium flex items-center gap-2"
-            >
-              <i class="fas fa-trash"></i>
-              删除
-            </button>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-5">
-          <aside class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4">
-            <div class="flex items-center justify-between mb-3">
-              <h3 class="text-sm font-semibold text-gray-900 dark:text-white">订阅库</h3>
-              <button type="button" x-on:click="loadSubscriptions()" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">
-                刷新
-              </button>
-            </div>
-            <div x-show="!currentUser" class="text-sm text-gray-500 dark:text-gray-400 py-3">
-              登录后显示你的订阅库
-            </div>
-            <div x-show="currentUser && subscriptionsLoading" class="text-sm text-gray-500 dark:text-gray-400 py-3">
-              <i class="fas fa-spinner fa-spin mr-2"></i>加载中...
-            </div>
-            <div x-show="currentUser && !subscriptionsLoading && subscriptions.length === 0" class="text-sm text-gray-500 dark:text-gray-400 py-3">
-              还没有保存订阅
-            </div>
-            <div class="space-y-2 max-h-72 overflow-y-auto pr-1" x-show="subscriptions.length > 0">
-              <template x-for="subscription in subscriptions" x-bind:key="subscription.id">
-                <button
-                  type="button"
-                  x-on:click="loadSubscription(subscription.id)"
-                  class="w-full text-left p-3 rounded-lg border transition-colors"
-                  x-bind:class="activeSubscriptionId === subscription.id ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-200' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 text-gray-700 dark:text-gray-200'"
-                >
-                  <div class="font-medium text-sm truncate" x-text="subscription.name"></div>
-                  <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    <span x-text="subscription.enabledSourceCount"></span>/<span x-text="subscription.sourceCount"></span> 源
-                  </div>
-                </button>
-              </template>
-            </div>
-          </aside>
-
+        <div>
           <section class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">订阅名称</label>
@@ -469,50 +579,174 @@ export const Form = (props) => {
         </div>
       </div>
 
-      </div>
+      </section>
 
-  {/* Stable Subscription Links */}
-  <div x-cloak x-show="stableLinks" x-data="{ copiedStable: null }" class="mt-8">
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-primary-200 dark:border-primary-900/60 p-6 transition-all duration-300 hover:shadow-md">
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div>
-          <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <span class="w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-300 flex items-center justify-center">
-              <i class="fas fa-anchor text-sm"></i>
-            </span>
-            固定订阅链接
-          </h2>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">这些链接绑定当前订阅 token，更新订阅后客户端地址保持不变。</p>
-        </div>
-        <span class="text-xs font-mono px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-900 text-gray-500 dark:text-gray-400" x-text="subscriptionToken"></span>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {LINK_FIELDS.map((field) => (
-          <div class="relative group" key={`stable-${field.key}`}>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t(field.labelKey)}
-            </label>
-            <div class="flex gap-2">
-              <input
-                type="text"
-                readonly
-                x-bind:value={`stableLinks?.${field.key} || ''`}
-                class="w-full px-4 py-2 rounded-lg border border-primary-100 dark:border-primary-900/60 bg-primary-50/50 dark:bg-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 font-mono text-sm text-primary-700 dark:text-primary-300"
-              />
-              <button
-                type="button"
-                x-on:click={`navigator.clipboard.writeText(stableLinks?.${field.key}); copiedStable = '${field.key}'; setTimeout(() => copiedStable = null, 2000)`}
-                class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/30 hover:text-primary-600 dark:hover:text-primary-300 transition-colors duration-200 flex items-center justify-center"
-                x-bind:class={`{'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-300': copiedStable === '${field.key}'}`}
-              >
-                <i class="fas" x-bind:class={`copiedStable === '${field.key}' ? 'fa-check' : 'fa-copy'`}></i>
-              </button>
+      <aside class="xl:sticky xl:top-6 min-w-0" x-data="{ copiedStable: null }">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 transition-all duration-300 hover:shadow-md">
+          <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-5">
+            <div>
+              <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <span class="w-8 h-8 rounded-lg bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 flex items-center justify-center">
+                  <i class="fas fa-eye text-sm"></i>
+                </span>
+                预览
+              </h2>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">实时查看当前订阅会包含哪些源、节点和规则。</p>
+            </div>
+            <div class="inline-flex rounded-xl bg-gray-100 dark:bg-gray-900 p-1 text-sm font-medium">
+              <span class="px-3 py-1.5 rounded-lg text-gray-500 dark:text-gray-400">YAML</span>
+              <span class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm">可视化</span>
             </div>
           </div>
-        ))}
+
+          <div class="grid grid-cols-3 gap-3 mb-5">
+            <div class="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 p-4 text-center">
+              <div class="text-2xl font-bold text-primary-600 dark:text-primary-300" x-text="managedNodes.length">0</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">节点</div>
+            </div>
+            <div class="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 p-4 text-center">
+              <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-300" x-text="sources.filter(source => source.enabled !== false && (source.content || '').trim()).length">0</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">启用源</div>
+            </div>
+            <div class="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 p-4 text-center">
+              <div class="text-2xl font-bold text-violet-600 dark:text-violet-300" x-text="selectedRules.length">0</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">规则组</div>
+            </div>
+          </div>
+
+          <div class="space-y-5">
+            <section>
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <i class="fas fa-diagram-project text-gray-400"></i>
+                  规则预览
+                </h3>
+                <span class="text-xs text-gray-500 dark:text-gray-400" x-text="selectedPredefinedRule === 'custom' ? '自定义' : selectedPredefinedRule"></span>
+              </div>
+              <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
+                <template x-for="rule in (window.RULE_PREVIEW_META || []).filter(item => selectedRules.includes(item.name))" x-bind:key="rule.name">
+                  <details class="group rounded-xl border border-primary-100 dark:border-primary-900/70 bg-primary-50/40 dark:bg-primary-950/20 overflow-hidden">
+                    <summary class="list-none cursor-pointer px-3 py-3 flex items-center gap-3">
+                      <span class="text-gray-400 transition-transform group-open:rotate-90">
+                        <i class="fas fa-chevron-right text-xs"></i>
+                      </span>
+                      <div class="min-w-0 flex-1">
+                        <div class="flex items-center justify-between gap-3">
+                          <span class="font-semibold text-sm text-gray-900 dark:text-white truncate" x-text="rule.label"></span>
+                          <span class="text-xs px-2 py-0.5 rounded-full bg-white dark:bg-gray-800 text-primary-600 dark:text-primary-300 border border-primary-100 dark:border-primary-900" x-text="rule.action"></span>
+                        </div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-1" x-text="`${rule.description} · ${rule.entries.length} 条`"></div>
+                      </div>
+                    </summary>
+                    <div class="border-t border-primary-100 dark:border-primary-900/70 px-3 pb-3 pt-2 space-y-2 bg-white/60 dark:bg-gray-900/40">
+                      <template x-for="entry in rule.entries" x-bind:key="entry.path">
+                        <div class="flex items-center justify-between gap-3 text-xs">
+                          <span class="font-medium text-gray-700 dark:text-gray-200" x-text="entry.label"></span>
+                          <span class="font-mono text-gray-500 dark:text-gray-400 truncate" x-text="entry.path"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </details>
+                </template>
+                <div x-show="selectedRules.length === 0" class="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                  暂未选择规则
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <i class="fas fa-server text-gray-400"></i>
+                  节点列表
+                </h3>
+                <span class="text-xs text-gray-500 dark:text-gray-400">共 <span x-text="managedNodes.length"></span> 个</span>
+              </div>
+              <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
+                <template x-for="node in managedNodes" x-bind:key="node.id">
+                  <div class="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-primary-500 shrink-0"></span>
+                    <span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-800 dark:text-gray-100" x-text="node.name"></span>
+                    <span class="px-2 py-0.5 rounded-md text-xs uppercase bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900" x-text="node.type"></span>
+                  </div>
+                </template>
+                <div x-show="managedNodes.length === 0" class="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                  校验源后会显示节点
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <i class="fas fa-anchor text-gray-400"></i>
+                  固定订阅链接
+                </h3>
+                <span class="text-xs font-mono text-gray-400 truncate max-w-40" x-text="subscriptionToken"></span>
+              </div>
+              <div x-show="!stableLinks" class="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                保存订阅后在这里复制客户端链接
+              </div>
+              <div x-cloak x-show="stableLinks" class="space-y-3">
+                {LINK_FIELDS.map((field) => (
+                  <div class="relative group" key={`stable-preview-${field.key}`}>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                      {t(field.labelKey)}
+                    </label>
+                    <div class="flex gap-2">
+                      <input
+                        type="text"
+                        readonly
+                        x-bind:value={`stableLinks?.${field.key} || ''`}
+                        class="w-full px-3 py-2 rounded-lg border border-primary-100 dark:border-primary-900/60 bg-primary-50/50 dark:bg-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 font-mono text-xs text-primary-700 dark:text-primary-300"
+                      />
+                      <button
+                        type="button"
+                        x-on:click={`navigator.clipboard.writeText(stableLinks?.${field.key}); copiedStable = '${field.key}'; setTimeout(() => copiedStable = null, 2000)`}
+                        class="w-10 h-10 shrink-0 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/30 hover:text-primary-600 dark:hover:text-primary-300 transition-colors duration-200 flex items-center justify-center"
+                        x-bind:class={`{'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-300': copiedStable === '${field.key}'}`}
+                        title="复制链接"
+                      >
+                        <i class="fas" x-bind:class={`copiedStable === '${field.key}' ? 'fa-check' : 'fa-copy'`}></i>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <div class="mt-6 pt-5 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-3">
+            <button
+              type="button"
+              x-on:click="saveSubscription()"
+              x-bind:disabled="savingSubscription || !currentUser"
+              class="flex-1 px-4 py-3 rounded-xl bg-primary-600 text-white hover:bg-primary-700 font-semibold disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20"
+            >
+              <i class="fas" x-bind:class="savingSubscription ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+              <span x-text="activeSubscriptionId ? '更新订阅' : '保存订阅'">保存订阅</span>
+            </button>
+            <button
+              type="button"
+              x-on:click="resetSubscriptionDraft()"
+              class="px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 font-semibold flex items-center justify-center gap-2"
+            >
+              <i class="fas fa-plus"></i>
+              新建
+            </button>
+            <button
+              type="button"
+              x-show="activeSubscriptionId"
+              x-on:click="deleteSubscription()"
+              class="px-4 py-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 font-semibold flex items-center justify-center gap-2"
+            >
+              <i class="fas fa-trash"></i>
+              删除
+            </button>
+          </div>
+        </div>
+      </aside>
       </div>
-    </div>
-  </div>
 
   <script dangerouslySetInnerHTML={{ __html: scriptContent }} />
     </div>
