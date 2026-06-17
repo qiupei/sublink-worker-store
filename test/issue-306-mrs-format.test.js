@@ -3,11 +3,22 @@ import yaml from 'js-yaml';
 import { ClashConfigBuilder } from '../src/builders/ClashConfigBuilder.js';
 import { generateClashRuleSets } from '../src/config/ruleGenerators.js';
 
+const AI_RULE_PROVIDER_NAMES = ['openai', 'anthropic', 'category-ai-chat-!cn'];
+
+const expectAiProvidersFormat = (providers, format) => {
+  AI_RULE_PROVIDER_NAMES.forEach(name => {
+    const provider = providers[name];
+    expect(provider).toBeDefined();
+    expect(provider.format).toBe(format);
+    expect(provider.url).toContain(`.${format === 'mrs' ? 'mrs' : 'yaml'}`);
+  });
+};
+
 /**
  * Issue #306: 梅林Clash不支持mrs格式
  * 
  * 问题：老版本Clash内核不支持mrs格式的rule-set，导致报错：
- * "Parse config error: rules[0] [RULE-SET,category-ai-!cn,💬 AI 服务] error: rule set [category-ai-!cn] not found"
+ * "Parse config error: rules[0] [RULE-SET,category-ai-chat-!cn,💬 AI 服务] error: rule set [category-ai-chat-!cn] not found"
  * 
  * 解决方案：根据User-Agent检测客户端类型，对老版本Clash使用yaml格式
  */
@@ -18,20 +29,14 @@ describe('Issue #306: MRS format compatibility for legacy Clash clients', () => 
   describe('generateClashRuleSets default behavior', () => {
     it('should generate rule-providers with mrs format when useMrs=true', () => {
       const { site_rule_providers } = generateClashRuleSets(['AI Services'], [], true);
-      
-      expect(site_rule_providers['category-ai-!cn']).toBeDefined();
-      const aiProvider = site_rule_providers['category-ai-!cn'];
-      expect(aiProvider.format).toBe('mrs');
-      expect(aiProvider.url).toContain('.mrs');
+
+      expectAiProvidersFormat(site_rule_providers, 'mrs');
     });
 
     it('should generate rule-providers with yaml format when useMrs=false', () => {
       const { site_rule_providers } = generateClashRuleSets(['AI Services'], [], false);
-      
-      expect(site_rule_providers['category-ai-!cn']).toBeDefined();
-      const aiProvider = site_rule_providers['category-ai-!cn'];
-      expect(aiProvider.format).toBe('yaml');
-      expect(aiProvider.url).toContain('.yaml');
+
+      expectAiProvidersFormat(site_rule_providers, 'yaml');
     });
   });
 
@@ -71,7 +76,7 @@ proxies:
 `;
         const builder = new ClashConfigBuilder(
           input, 
-          ['AI Services'],  // 选择AI规则以触发category-ai-!cn
+          ['AI Services'],  // 选择AI规则以触发AI服务规则集
           [], 
           null, 
           'zh-CN', 
@@ -83,13 +88,11 @@ proxies:
         // 验证rule-providers存在
         expect(config['rule-providers']).toBeDefined();
         
-        const aiProvider = config['rule-providers']['category-ai-!cn'];
-        expect(aiProvider).toBeDefined();
-        
         // 期望：老版本Clash应该使用yaml格式
-        expect(aiProvider.format).toBe('yaml');
-        expect(aiProvider.url).toContain('.yaml');
-        expect(aiProvider.url).not.toContain('.mrs');
+        expectAiProvidersFormat(config['rule-providers'], 'yaml');
+        AI_RULE_PROVIDER_NAMES.forEach(name => {
+          expect(config['rule-providers'][name].url).not.toContain('.mrs');
+        });
       });
     });
 
@@ -115,12 +118,8 @@ proxies:
         const yamlText = await builder.build();
         const config = yaml.load(yamlText);
 
-        const aiProvider = config['rule-providers']['category-ai-!cn'];
-        expect(aiProvider).toBeDefined();
-        
         // 期望：现代客户端使用mrs格式
-        expect(aiProvider.format).toBe('mrs');
-        expect(aiProvider.url).toContain('.mrs');
+        expectAiProvidersFormat(config['rule-providers'], 'mrs');
       });
     });
   });

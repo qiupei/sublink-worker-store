@@ -5,15 +5,18 @@ import { Layout } from '../components/Layout.jsx';
 import { Navbar } from '../components/Navbar.jsx';
 import { Form } from '../components/Form.jsx';
 import { Footer } from '../components/Footer.jsx';
-import { UpdateChecker } from '../components/UpdateChecker.jsx';
 import { SingboxConfigBuilder } from '../builders/SingboxConfigBuilder.js';
 import { ClashConfigBuilder } from '../builders/ClashConfigBuilder.js';
 import { SurgeConfigBuilder } from '../builders/SurgeConfigBuilder.js';
 import { createTranslator, resolveLanguage } from '../i18n/index.js';
-import { encodeBase64, tryDecodeSubscriptionLines } from '../utils.js';
+import { encodeBase64, tryDecodeSubscriptionLines, generateWebPath } from '../utils.js';
+import { ProxyParser } from '../parsers/index.js';
+import { parseSubscriptionContent } from '../parsers/subscription/subscriptionContentParser.js';
 import { APP_NAME, APP_SUBTITLE } from '../constants.js';
 import { ShortLinkService } from '../services/shortLinkService.js';
 import { ConfigStorageService } from '../services/configStorageService.js';
+import { SubscriptionStorageService, getEnabledSubscriptionInput } from '../services/subscriptionStorageService.js';
+import { AuthService } from '../services/authService.js';
 import { ServiceError, MissingDependencyError } from '../services/errors.js';
 import { normalizeRuntime } from '../runtime/runtimeConfig.js';
 import { PREDEFINED_RULE_SETS, SING_BOX_CONFIG, SING_BOX_CONFIG_V1_11, generateSubconverterConfig } from '../config/index.js';
@@ -24,7 +27,9 @@ export function createApp(bindings = {}) {
     const runtime = normalizeRuntime(bindings);
     const services = {
         shortLinks: runtime.kv ? new ShortLinkService(runtime.kv, { shortLinkTtlSeconds: runtime.config.shortLinkTtlSeconds }) : null,
-        configStorage: runtime.kv ? new ConfigStorageService(runtime.kv, { configTtlSeconds: runtime.config.configTtlSeconds }) : null
+        configStorage: runtime.kv ? new ConfigStorageService(runtime.kv, { configTtlSeconds: runtime.config.configTtlSeconds }) : null,
+        subscriptions: runtime.kv ? new SubscriptionStorageService(runtime.kv) : null,
+        auth: runtime.kv ? new AuthService(runtime.kv) : null
     };
 
     const app = new Hono();
@@ -34,6 +39,15 @@ export function createApp(bindings = {}) {
         const lang = c.req.query('lang') || acceptLanguage?.split(',')[0] || 'zh-CN';
         c.set('lang', lang);
         c.set('t', createTranslator(lang));
+        const auth = services.auth;
+        if (auth) {
+            const session = await auth.getSession(getSessionCookie(c.req));
+            c.set('user', session?.user || null);
+            c.set('sessionToken', session?.token || '');
+        } else {
+            c.set('user', null);
+            c.set('sessionToken', '');
+        }
         await next();
     });
 
@@ -62,7 +76,6 @@ export function createApp(bindings = {}) {
                         </div>
                     </main>
                     <Footer />
-                    <UpdateChecker />
                 </div>
             </Layout>
         );
@@ -365,6 +378,144 @@ export function createApp(bindings = {}) {
         }
     });
 
+    app.get('/api/auth/me', (c) => {
+        const user = c.get('user');
+        return c.json({ user });
+    });
+
+    app.post('/api/auth/register', async (c) => {
+        try {
+            const { username, password } = await c.req.json();
+            const result = await requireAuthService(services.auth).register(username, password);
+            setSessionCookie(c, result.token);
+            return c.json({ user: result.user }, 201);
+        } catch (error) {
+            if (error instanceof SyntaxError) {
+                return c.text(`Invalid format: ${error.message}`, 400);
+            }
+            return handleError(c, error, runtime.logger);
+        }
+    });
+
+    app.post('/api/auth/login', async (c) => {
+        try {
+            const { username, password } = await c.req.json();
+            const result = await requireAuthService(services.auth).login(username, password);
+            setSessionCookie(c, result.token);
+            return c.json({ user: result.user });
+        } catch (error) {
+            if (error instanceof SyntaxError) {
+                return c.text(`Invalid format: ${error.message}`, 400);
+            }
+            return handleError(c, error, runtime.logger);
+        }
+    });
+
+    app.post('/api/auth/logout', async (c) => {
+        try {
+            await requireAuthService(services.auth).logout(c.get('sessionToken'));
+            clearSessionCookie(c);
+            return c.json({ success: true });
+        } catch (error) {
+            return handleError(c, error, runtime.logger);
+        }
+    });
+
+    app.get('/api/subscriptions', async (c) => {
+        try {
+            const user = requireCurrentUser(c);
+            const subscriptions = await requireSubscriptionStorage(services.subscriptions).listSubscriptions(user.id);
+            return c.json({ subscriptions });
+        } catch (error) {
+            return handleError(c, error, runtime.logger);
+        }
+    });
+
+    app.post('/api/subscriptions', async (c) => {
+        try {
+            const payload = await c.req.json();
+            const user = requireCurrentUser(c);
+            const subscription = await requireSubscriptionStorage(services.subscriptions).createSubscription({
+                ...payload,
+                ownerToken: user.id
+            });
+            return c.json({ subscription }, 201);
+        } catch (error) {
+            if (error instanceof SyntaxError) {
+                return c.text(`Invalid format: ${error.message}`, 400);
+            }
+            return handleError(c, error, runtime.logger);
+        }
+    });
+
+    app.post('/api/parse-source', async (c) => {
+        try {
+            const { content, ua } = await c.req.json();
+            const userAgent = ua || getRequestHeader(c.req, 'User-Agent') || DEFAULT_USER_AGENT;
+            const nodes = await parseSourceNodes(content, userAgent);
+            if (nodes.length === 0) {
+                return c.text('No valid nodes found', 400);
+            }
+            return c.json({ nodes, count: nodes.length });
+        } catch (error) {
+            if (error instanceof SyntaxError) {
+                return c.text(`Invalid format: ${error.message}`, 400);
+            }
+            return handleError(c, error, runtime.logger);
+        }
+    });
+
+    app.get('/api/subscriptions/:id', async (c) => {
+        try {
+            const user = requireCurrentUser(c);
+            const subscription = await requireSubscriptionStorage(services.subscriptions).getSubscription(c.req.param('id'), user.id);
+            if (!subscription) return c.text('Subscription not found', 404);
+            return c.json({ subscription });
+        } catch (error) {
+            return handleError(c, error, runtime.logger);
+        }
+    });
+
+    app.put('/api/subscriptions/:id', async (c) => {
+        try {
+            const payload = await c.req.json();
+            const user = requireCurrentUser(c);
+            const subscription = await requireSubscriptionStorage(services.subscriptions).updateSubscription(c.req.param('id'), {
+                ...payload,
+                ownerToken: user.id
+            });
+            if (!subscription) return c.text('Subscription not found', 404);
+            return c.json({ subscription });
+        } catch (error) {
+            if (error instanceof SyntaxError) {
+                return c.text(`Invalid format: ${error.message}`, 400);
+            }
+            return handleError(c, error, runtime.logger);
+        }
+    });
+
+    app.delete('/api/subscriptions/:id', async (c) => {
+        try {
+            const user = requireCurrentUser(c);
+            const deleted = await requireSubscriptionStorage(services.subscriptions).deleteSubscription(c.req.param('id'), user.id);
+            if (!deleted) return c.text('Subscription not found', 404);
+            return c.json({ success: true });
+        } catch (error) {
+            return handleError(c, error, runtime.logger);
+        }
+    });
+
+    app.get('/sub/:token/:target', async (c) => {
+        try {
+            const target = c.req.param('target');
+            const subscription = await requireSubscriptionStorage(services.subscriptions).getSubscriptionByToken(c.req.param('token'));
+            if (!subscription) return c.text('Subscription not found', 404);
+            return buildSavedSubscriptionResponse(c, target, subscription, runtime.logger);
+        } catch (error) {
+            return handleError(c, error, runtime.logger);
+        }
+    });
+
     app.get('/resolve', async (c) => {
         try {
             const shortUrl = c.req.query('url');
@@ -397,15 +548,10 @@ export function createApp(bindings = {}) {
     });
 
     app.get('/favicon.ico', async (c) => {
-        if (!runtime.assetFetcher) {
-            return c.notFound();
-        }
-        try {
-            return await runtime.assetFetcher(c.req.raw);
-        } catch (error) {
-            runtime.logger.warn('Asset fetch failed', error);
-            return c.notFound();
-        }
+        return c.text(getAppIconSvg(), 200, {
+            'Content-Type': 'image/svg+xml; charset=utf-8',
+            'Cache-Control': 'public, max-age=86400'
+        });
     });
 
     return app;
@@ -532,6 +678,301 @@ function getRequestHeader(request, name) {
     return undefined;
 }
 
+function parseCookies(cookieHeader = '') {
+    return cookieHeader
+        .split(';')
+        .map(part => part.trim())
+        .filter(Boolean)
+        .reduce((cookies, part) => {
+            const eqIndex = part.indexOf('=');
+            if (eqIndex === -1) return cookies;
+            const key = part.slice(0, eqIndex).trim();
+            const value = part.slice(eqIndex + 1).trim();
+            if (key) cookies[key] = decodeURIComponent(value);
+            return cookies;
+        }, {});
+}
+
+function getSessionCookie(request) {
+    const cookieHeader = getRequestHeader(request, 'Cookie') || '';
+    return parseCookies(cookieHeader).nodelink_session || '';
+}
+
+function getAppIconSvg() {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<defs>
+<linearGradient id="g" x1="10" y1="8" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+<stop stop-color="#0ea5e9"/>
+<stop offset="1" stop-color="#10b981"/>
+</linearGradient>
+</defs>
+<rect width="64" height="64" rx="16" fill="#06111f"/>
+<path d="M32 9 50 17v13c0 11.4-7.5 20.8-18 25-10.5-4.2-18-13.6-18-25V17l18-8Z" fill="url(#g)" opacity=".18" stroke="url(#g)" stroke-width="3"/>
+<circle cx="22" cy="26" r="5" fill="#38bdf8"/>
+<circle cx="42" cy="26" r="5" fill="#34d399"/>
+<circle cx="32" cy="42" r="5" fill="#f8fafc"/>
+<path d="M26.5 28.5 32 38m5.5-9.5L32 38" stroke="#e0f2fe" stroke-width="3" stroke-linecap="round"/>
+</svg>`;
+}
+
+function setSessionCookie(c, token) {
+    c.header('Set-Cookie', `nodelink_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}`);
+}
+
+function clearSessionCookie(c) {
+    c.header('Set-Cookie', 'nodelink_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+}
+
+function requireCurrentUser(c) {
+    const user = c.get('user');
+    if (!user?.id) {
+        throw new ServiceError('请先登录', 401);
+    }
+    return user;
+}
+
+async function parseSourceNodes(content, userAgent) {
+    if (!content || typeof content !== 'string') {
+        return [];
+    }
+
+    const collected = [];
+    const pushProxy = (proxy) => {
+        if (!proxy || typeof proxy !== 'object' || !proxy.tag || !proxy.type) return;
+        collected.push({
+            id: `node_${generateWebPath(10)}`,
+            name: proxy.tag,
+            type: proxy.type,
+            enabled: true,
+            proxy
+        });
+    };
+
+    const consumeResult = async (result) => {
+        if (!result) return;
+        if (result && typeof result === 'object' && (result.type === 'yamlConfig' || result.type === 'singboxConfig' || result.type === 'surgeConfig')) {
+            if (Array.isArray(result.proxies)) {
+                result.proxies.forEach(pushProxy);
+            }
+            return;
+        }
+        if (Array.isArray(result)) {
+            for (const item of result) {
+                if (item && typeof item === 'object') {
+                    pushProxy(item);
+                } else if (typeof item === 'string') {
+                    await consumeResult(await ProxyParser.parse(item.trim(), userAgent));
+                }
+            }
+            return;
+        }
+        if (result && typeof result === 'object') {
+            pushProxy(result);
+        }
+    };
+
+    const directResult = parseSubscriptionContent(content);
+    await consumeResult(directResult);
+    if (collected.length > 0) {
+        return collected;
+    }
+
+    const lines = content
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean);
+
+    for (const line of lines) {
+        let processed = tryDecodeSubscriptionLines(line);
+        if (!Array.isArray(processed)) processed = [processed];
+        for (const item of processed) {
+            if (typeof item === 'string') {
+                await consumeResult(await ProxyParser.parse(item.trim(), userAgent));
+            }
+        }
+    }
+
+    return collected;
+}
+
+async function buildSavedSubscriptionResponse(c, target, subscription, logger) {
+    const normalizedTarget = typeof target === 'string' ? target.toLowerCase() : '';
+    const config = getEnabledSubscriptionInput(subscription);
+    if (!config) {
+        return c.text('Subscription has no enabled sources', 400);
+    }
+    const subscriptionHeaders = getSubscriptionDownloadHeaders(subscription, normalizedTarget);
+
+    const options = subscription.options || {};
+    const selectedRules = Array.isArray(options.selectedRules) ? options.selectedRules : [];
+    const customRules = Array.isArray(options.customRules) ? options.customRules : [];
+    const ua = options.ua || getRequestHeader(c.req, 'User-Agent') || DEFAULT_USER_AGENT;
+    const groupByCountry = options.groupByCountry === true;
+    const includeAutoSelect = options.includeAutoSelect !== false;
+    const enableClashUI = options.enableClashUI === true;
+    const externalController = options.externalController || undefined;
+    const externalUiDownloadUrl = options.externalUiDownloadUrl || undefined;
+    const baseConfig = options.baseConfig || undefined;
+    const lang = c.get('lang');
+
+    if (normalizedTarget === 'singbox') {
+        const requestedSingboxVersion = c.req.query('singbox_version') || c.req.query('sb_version') || c.req.query('sb_ver');
+        const requestUserAgent = getRequestHeader(c.req, 'User-Agent');
+        const singboxConfigVersion = resolveSingboxConfigVersion(requestedSingboxVersion, requestUserAgent);
+        const defaultConfig = singboxConfigVersion === '1.11' ? SING_BOX_CONFIG_V1_11 : SING_BOX_CONFIG;
+        const builder = new SingboxConfigBuilder(
+            config,
+            selectedRules,
+            customRules,
+            baseConfig || defaultConfig,
+            lang,
+            ua,
+            groupByCountry,
+            enableClashUI,
+            externalController,
+            externalUiDownloadUrl,
+            singboxConfigVersion,
+            includeAutoSelect
+        );
+        await builder.build();
+        const userinfo = builder.getSubscriptionUserinfo();
+        const headers = { ...subscriptionHeaders };
+        if (userinfo) headers['subscription-userinfo'] = userinfo;
+        return c.json(builder.config, 200, headers);
+    }
+
+    if (normalizedTarget === 'clash') {
+        const builder = new ClashConfigBuilder(
+            config,
+            selectedRules,
+            customRules,
+            baseConfig,
+            lang,
+            ua,
+            groupByCountry,
+            enableClashUI,
+            externalController,
+            externalUiDownloadUrl,
+            includeAutoSelect
+        );
+        await builder.build();
+        const headers = { ...subscriptionHeaders, 'Content-Type': 'text/yaml; charset=utf-8' };
+        const userinfo = builder.getSubscriptionUserinfo();
+        if (userinfo) headers['subscription-userinfo'] = userinfo;
+        return c.text(builder.formatConfig(), 200, headers);
+    }
+
+    if (normalizedTarget === 'surge') {
+        const builder = new SurgeConfigBuilder(
+            config,
+            selectedRules,
+            customRules,
+            baseConfig,
+            lang,
+            ua,
+            groupByCountry,
+            includeAutoSelect
+        );
+        builder.setSubscriptionUrl(c.req.url);
+        await builder.build();
+        const userinfo = builder.getSubscriptionUserinfo();
+        const headers = { ...subscriptionHeaders };
+        if (userinfo) headers['subscription-userinfo'] = userinfo;
+        return c.text(builder.formatConfig(), 200, headers);
+    }
+
+    if (normalizedTarget === 'xray') {
+        return buildSavedXrayResponse(c, config, ua, logger, subscriptionHeaders);
+    }
+
+    return c.text('Unsupported subscription target', 400);
+}
+
+async function buildSavedXrayResponse(c, inputString, userAgent, logger, subscriptionHeaders = {}) {
+    const proxylist = inputString.split('\n');
+    const finalProxyList = [];
+    let subscriptionUserinfo;
+    const headers = { 'User-Agent': userAgent };
+
+    for (const proxy of proxylist) {
+        const trimmedProxy = proxy.trim();
+        if (!trimmedProxy) continue;
+
+        if (trimmedProxy.startsWith('http://') || trimmedProxy.startsWith('https://')) {
+            try {
+                const response = await fetch(trimmedProxy, { method: 'GET', headers });
+                const fetchedUserinfo = response.headers.get('subscription-userinfo');
+                if (fetchedUserinfo && subscriptionUserinfo === undefined) {
+                    subscriptionUserinfo = fetchedUserinfo;
+                }
+                const text = await response.text();
+                let processed = tryDecodeSubscriptionLines(text, { decodeUriComponent: true });
+                if (!Array.isArray(processed)) processed = [processed];
+                finalProxyList.push(...processed.filter(item => typeof item === 'string' && item.trim() !== ''));
+            } catch (e) {
+                logger.warn('Failed to fetch the proxy', e);
+            }
+        } else {
+            let processed = tryDecodeSubscriptionLines(trimmedProxy);
+            if (!Array.isArray(processed)) processed = [processed];
+            finalProxyList.push(...processed.filter(item => typeof item === 'string' && item.trim() !== ''));
+        }
+    }
+
+    const finalString = finalProxyList.join('\n');
+    if (!finalString) {
+        return c.text('Missing config parameter', 400);
+    }
+
+    const responseHeaders = { ...subscriptionHeaders };
+    if (subscriptionUserinfo) {
+        responseHeaders['subscription-userinfo'] = subscriptionUserinfo;
+    }
+
+    return c.text(encodeBase64(finalString), 200, responseHeaders);
+}
+
+function getSubscriptionDownloadHeaders(subscription, target) {
+    const name = normalizeHeaderText(subscription?.name) || 'subscription';
+    const filename = ensureSubscriptionExtension(name, target);
+    const fallback = toAsciiFilename(filename);
+    return {
+        'profile-title': `base64:${encodeBase64(name)}`,
+        'Content-Disposition': `attachment; filename="${fallback}"; filename*=UTF-8''${encodeRFC5987Value(filename)}`
+    };
+}
+
+function normalizeHeaderText(value) {
+    return typeof value === 'string'
+        ? value.replace(/[\r\n]/g, ' ').trim()
+        : '';
+}
+
+function ensureSubscriptionExtension(name, target) {
+    const extensionByTarget = {
+        clash: '.yaml',
+        singbox: '.json',
+        surge: '.conf',
+        xray: '.txt'
+    };
+    const extension = extensionByTarget[target] || '.txt';
+    return name.toLowerCase().endsWith(extension) ? name : `${name}${extension}`;
+}
+
+function toAsciiFilename(value) {
+    const sanitized = normalizeHeaderText(value)
+        .replace(/[\\/:"*?<>|]+/g, '-')
+        .replace(/[^\x20-\x7E]/g, '')
+        .trim();
+    return sanitized || 'subscription';
+}
+
+function encodeRFC5987Value(value) {
+    return encodeURIComponent(value)
+        .replace(/['()]/g, char => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)
+        .replace(/\*/g, '%2A');
+}
+
 function requireShortLinkService(service) {
     if (!service) {
         throw new MissingDependencyError('Short link functionality is unavailable');
@@ -542,6 +983,20 @@ function requireShortLinkService(service) {
 function requireConfigStorage(service) {
     if (!service) {
         throw new MissingDependencyError('Config storage functionality is unavailable');
+    }
+    return service;
+}
+
+function requireSubscriptionStorage(service) {
+    if (!service) {
+        throw new MissingDependencyError('Subscription storage functionality is unavailable');
+    }
+    return service;
+}
+
+function requireAuthService(service) {
+    if (!service) {
+        throw new MissingDependencyError('Auth functionality is unavailable');
     }
     return service;
 }

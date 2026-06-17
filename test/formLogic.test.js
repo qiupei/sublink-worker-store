@@ -28,8 +28,171 @@ describe('formLogic toString fix', () => {
     const fn = new Function('window', '(' + formLogicFn.toString() + ')(); return window;');
     const result = fn(fakeWindow);
     const data = result.formData();
-    expect(typeof data.submitForm).toBe('function');
+    expect(typeof data.saveSubscription).toBe('function');
     expect(typeof data.toggleAccordion).toBe('function');
     expect(data.showAdvanced).toBe(false);
+  });
+
+  it('auto names node and subscription sources by type and order', () => {
+    const fakeWindow = { APP_TRANSLATIONS: {}, PREDEFINED_RULE_SETS: {} };
+    const fn = new Function('window', '(' + formLogicFn.toString() + ')(); return window;');
+    const result = fn(fakeWindow);
+    const data = result.formData();
+
+    data.sources = [
+      { content: 'vless://example' },
+      { content: 'https://example.com/sub' },
+      { content: 'ss://example' },
+      { content: 'http://example.com/sub' }
+    ];
+
+    expect(data.getSourceAutoName(data.sources[0], 0)).toBe('节点链接 #1');
+    expect(data.getSourceAutoName(data.sources[1], 1)).toBe('订阅链接 #1');
+    expect(data.getSourceAutoName(data.sources[2], 2)).toBe('节点链接 #2');
+    expect(data.getSourceAutoName(data.sources[3], 3)).toBe('订阅链接 #2');
+  });
+
+  it('removes managed nodes when their source is removed', () => {
+    const fakeWindow = { APP_TRANSLATIONS: {}, PREDEFINED_RULE_SETS: {} };
+    const fn = new Function('window', '(' + formLogicFn.toString() + ')(); return window;');
+    const result = fn(fakeWindow);
+    const data = result.formData();
+    data.syncInputFromSources = () => {};
+
+    data.sources = [
+      { id: 'source-a', content: 'vless://a' },
+      { id: 'source-b', content: 'vless://b' }
+    ];
+    data.managedNodes = [
+      { id: 'node-a', sourceId: 'source-a' },
+      { id: 'node-b', sourceId: 'source-b' }
+    ];
+
+    data.removeSource(1);
+
+    expect(data.sources.map(source => source.id)).toEqual(['source-a']);
+    expect(data.managedNodes.map(node => node.id)).toEqual(['node-a']);
+  });
+
+  it('clears managed nodes when the only source is cleared', () => {
+    const fakeWindow = { APP_TRANSLATIONS: {}, PREDEFINED_RULE_SETS: {} };
+    const fn = new Function('window', '(' + formLogicFn.toString() + ')(); return window;');
+    const result = fn(fakeWindow);
+    const data = result.formData();
+    data.syncInputFromSources = () => {};
+
+    data.sources = [
+      { id: 'source-a', content: 'vless://a', imported: true, nodeCount: 1, error: 'old error' }
+    ];
+    data.managedNodes = [
+      { id: 'node-a', sourceId: 'source-a' },
+      { id: 'node-b', sourceId: 'source-b' }
+    ];
+
+    data.removeSource(0);
+
+    expect(data.sources).toEqual([
+      { id: 'source-a', content: '', imported: false, nodeCount: 0, error: '' }
+    ]);
+    expect(data.managedNodes).toEqual([]);
+  });
+
+  it('keeps renamed nodes when the same source is imported again', () => {
+    const fakeWindow = { APP_TRANSLATIONS: {}, PREDEFINED_RULE_SETS: {} };
+    const fn = new Function('window', '(' + formLogicFn.toString() + ')(); return window;');
+    const result = fn(fakeWindow);
+    const data = result.formData();
+
+    const source = { id: 'source-a' };
+    const parsedNode = {
+      id: 'node-new',
+      sourceId: 'source-a',
+      name: 'US-LA-ISP-1',
+      type: 'vless',
+      enabled: true,
+      proxy: {
+        type: 'vless',
+        tag: 'US-LA-ISP-1',
+        server: '172.252.125.177',
+        port: 443,
+        uuid: '3f42aaeb-e402-4379-9fb4-480a39187c61'
+      }
+    };
+    data.managedNodes = [
+      {
+        id: 'node-existing',
+        sourceId: 'source-a',
+        name: '自用-美国洛杉矶',
+        type: 'vless',
+        enabled: true,
+        proxy: {
+          type: 'vless',
+          tag: '自用-美国洛杉矶',
+          server: '172.252.125.177',
+          port: 443,
+          uuid: '3f42aaeb-e402-4379-9fb4-480a39187c61'
+        }
+      }
+    ];
+
+    data.mergeImportedNodes(source, [parsedNode]);
+
+    expect(data.managedNodes).toHaveLength(1);
+    expect(data.managedNodes[0]).toMatchObject({
+      id: 'node-existing',
+      sourceId: 'source-a',
+      name: '自用-美国洛杉矶',
+      proxy: {
+        tag: '自用-美国洛杉矶'
+      }
+    });
+  });
+
+  it('deduplicates legacy nodes without source ids when importing the same proxy', () => {
+    const fakeWindow = { APP_TRANSLATIONS: {}, PREDEFINED_RULE_SETS: {} };
+    const fn = new Function('window', '(' + formLogicFn.toString() + ')(); return window;');
+    const result = fn(fakeWindow);
+    const data = result.formData();
+
+    data.managedNodes = [
+      {
+        id: 'legacy-node',
+        sourceId: '',
+        name: '自用-美国洛杉矶',
+        type: 'vless',
+        enabled: true,
+        proxy: {
+          type: 'vless',
+          tag: '自用-美国洛杉矶',
+          server: '172.252.125.177',
+          port: 443,
+          uuid: '3f42aaeb-e402-4379-9fb4-480a39187c61'
+        }
+      }
+    ];
+
+    data.mergeImportedNodes({ id: 'source-a' }, [
+      {
+        id: 'fresh-node',
+        sourceId: 'source-a',
+        name: 'US-LA-ISP-1',
+        type: 'vless',
+        enabled: true,
+        proxy: {
+          type: 'vless',
+          tag: 'US-LA-ISP-1',
+          server: '172.252.125.177',
+          port: 443,
+          uuid: '3f42aaeb-e402-4379-9fb4-480a39187c61'
+        }
+      }
+    ]);
+
+    expect(data.managedNodes).toHaveLength(1);
+    expect(data.managedNodes[0]).toMatchObject({
+      id: 'legacy-node',
+      name: '自用-美国洛杉矶',
+      sourceId: 'source-a'
+    });
   });
 });

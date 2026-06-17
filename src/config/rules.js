@@ -13,7 +13,7 @@ export const UNIFIED_RULES = [
 	},
 	{
 		name: 'AI Services',
-		site_rules: ['category-ai-!cn',],
+		site_rules: ['openai', 'anthropic', 'category-ai-chat-!cn'],
 		ip_rules: []
 	},
 	{
@@ -33,7 +33,7 @@ export const UNIFIED_RULES = [
 	},
 	{
 		name: 'Private',
-		site_rules: [],
+		site_rules: ['private'],
 		ip_rules: ['private']
 	},
 	{

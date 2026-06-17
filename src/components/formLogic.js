@@ -71,6 +71,24 @@ export const formLogicFn = (t) => {
 
         return {
             input: '',
+            ownerToken: '',
+            currentUser: null,
+            authMode: 'login',
+            authUsername: '',
+            authPassword: '',
+            authMessage: '',
+            authLoading: false,
+            subscriptionName: '',
+            subscriptions: [],
+            subscriptionsLoading: false,
+            subscriptionMessage: '',
+            activeSubscriptionId: '',
+            subscriptionToken: '',
+            stableLinks: null,
+            savingSubscription: false,
+            sources: [],
+            managedNodes: [],
+            nodeSearch: '',
             showAdvanced: false,
             // Accordion states for each section (二级手风琴状态)
             accordionSections: {
@@ -99,28 +117,12 @@ export const formLogicFn = (t) => {
             configValidationState: '',
             configValidationMessage: '',
             customUA: '',
-            loading: false,
-            generatedLinks: null,
-            shortenedLinks: null,
-            shortening: false,
-            customShortCode: '',
             parsingUrl: false,
             parseDebounceTimer: null,
-            // These will be populated from window.APP_TRANSLATIONS
-            processingText: '',
-            convertText: '',
-            shortenLinksText: '',
-            shorteningText: '',
-            showFullLinksText: '',
 
             init() {
                 // Load translations
                 if (window.APP_TRANSLATIONS) {
-                    this.processingText = window.APP_TRANSLATIONS.processing;
-                    this.convertText = window.APP_TRANSLATIONS.convert;
-                    this.shortenLinksText = window.APP_TRANSLATIONS.shortenLinks;
-                    this.shorteningText = window.APP_TRANSLATIONS.shortening;
-                    this.showFullLinksText = window.APP_TRANSLATIONS.showFullLinks;
                     this.saveConfigText = window.APP_TRANSLATIONS.saveConfig;
                     this.savingConfigText = window.APP_TRANSLATIONS.savingConfig;
                     this.configContentRequiredText = window.APP_TRANSLATIONS.configContentRequired;
@@ -129,6 +131,11 @@ export const formLogicFn = (t) => {
 
                 // Load saved data
                 this.input = localStorage.getItem('inputTextarea') || '';
+                this.ownerToken = this.getOrCreateOwnerToken();
+                this.subscriptionName = localStorage.getItem('subscriptionName') || '';
+                this.sources = this.loadSavedSources(this.input);
+                this.managedNodes = this.loadSavedNodes();
+                this.syncInputFromSources();
                 this.showAdvanced = localStorage.getItem('advancedToggle') === 'true';
                 this.groupByCountry = localStorage.getItem('groupByCountry') === 'true';
                 this.includeAutoSelect = localStorage.getItem('includeAutoSelect') !== 'false';
@@ -138,7 +145,6 @@ export const formLogicFn = (t) => {
                 this.customUA = localStorage.getItem('userAgent') || '';
                 this.configEditor = localStorage.getItem('configEditor') || '';
                 this.configType = localStorage.getItem('configType') || 'singbox';
-                this.customShortCode = localStorage.getItem('customShortCode') || '';
                 const initialUrlParams = new URLSearchParams(window.location.search);
                 this.currentConfigId = initialUrlParams.get('configId') || '';
 
@@ -160,6 +166,7 @@ export const formLogicFn = (t) => {
                     localStorage.setItem('inputTextarea', val);
                     this.handleInputChange(val);
                 });
+                this.$watch('subscriptionName', val => localStorage.setItem('subscriptionName', val));
                 this.$watch('showAdvanced', val => localStorage.setItem('advancedToggle', val));
                 this.$watch('groupByCountry', val => localStorage.setItem('groupByCountry', val));
                 this.$watch('includeAutoSelect', val => localStorage.setItem('includeAutoSelect', val));
@@ -175,12 +182,582 @@ export const formLogicFn = (t) => {
                     localStorage.setItem('configType', val);
                     this.resetConfigValidation();
                 });
-                this.$watch('customShortCode', val => localStorage.setItem('customShortCode', val));
                 this.$watch('accordionSections', val => localStorage.setItem('accordionSections', JSON.stringify(val)), { deep: true });
+
+                this.loadCurrentUser();
             },
 
             toggleAccordion(section) {
                 this.accordionSections[section] = !this.accordionSections[section];
+            },
+
+            createClientToken(length = 32) {
+                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+                if (window.crypto && window.crypto.getRandomValues) {
+                    const values = new Uint8Array(length);
+                    window.crypto.getRandomValues(values);
+                    return Array.from(values, value => chars[value % chars.length]).join('');
+                }
+                return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+            },
+
+            getOrCreateOwnerToken() {
+                const existing = localStorage.getItem('subscriptionOwnerToken');
+                if (existing) return existing;
+                const token = this.createClientToken(36);
+                localStorage.setItem('subscriptionOwnerToken', token);
+                return token;
+            },
+
+            createEmptySource(index = 0) {
+                return {
+                    id: `src_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                    name: '',
+                    content: '',
+                    enabled: true,
+                    parsing: false,
+                    imported: false,
+                    nodeCount: 0,
+                    error: ''
+                };
+            },
+
+            getSourceKind(source) {
+                const content = (source?.content || '').trim().toLowerCase();
+                return content.startsWith('http://') || content.startsWith('https://') ? 'subscription' : 'node';
+            },
+
+            getSourceAutoName(source, index) {
+                const kind = this.getSourceKind(source);
+                const sameKindBefore = this.sources
+                    .slice(0, index)
+                    .filter(item => this.getSourceKind(item) === kind)
+                    .length;
+                const prefix = kind === 'subscription' ? '订阅链接' : '节点链接';
+                return `${prefix} #${sameKindBefore + 1}`;
+            },
+
+            loadSavedSources(fallbackInput = '') {
+                const saved = localStorage.getItem('subscriptionSources');
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            return parsed.map((source, index) => ({
+                                id: source.id || `src_${index + 1}`,
+                                name: '',
+                                content: source.content || '',
+                                enabled: source.enabled !== false,
+                                parsing: false,
+                                imported: source.imported === true,
+                                nodeCount: Number(source.nodeCount) || 0,
+                                error: source.error || ''
+                            }));
+                        }
+                    } catch { }
+                }
+                return [{ ...this.createEmptySource(0), content: fallbackInput || '' }];
+            },
+
+            persistSources() {
+                localStorage.setItem('subscriptionSources', JSON.stringify(this.sources));
+            },
+
+            loadSavedNodes() {
+                const saved = localStorage.getItem('managedNodes');
+                if (!saved) return [];
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (!Array.isArray(parsed)) return [];
+                    return parsed.map((node, index) => this.normalizeManagedNode(node, index)).filter(Boolean);
+                } catch {
+                    return [];
+                }
+            },
+
+            persistNodes() {
+                localStorage.setItem('managedNodes', JSON.stringify(this.managedNodes));
+            },
+
+            normalizeManagedNode(node, index = 0) {
+                if (!node || typeof node !== 'object' || !node.proxy || typeof node.proxy !== 'object') return null;
+                const name = (node.name || node.proxy.tag || node.proxy.name || `节点 ${index + 1}`).trim();
+                if (!name || !node.proxy.type) return null;
+                return {
+                    id: node.id || `node_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                    sourceId: node.sourceId || '',
+                    name,
+                    type: node.type || node.proxy.type,
+                    enabled: node.enabled !== false,
+                    proxy: {
+                        ...node.proxy,
+                        tag: name
+                    }
+                };
+            },
+
+            sortObjectKeys(value) {
+                if (Array.isArray(value)) return value.map(item => this.sortObjectKeys(item));
+                if (!value || typeof value !== 'object') return value;
+                return Object.keys(value)
+                    .sort()
+                    .reduce((result, key) => {
+                        result[key] = this.sortObjectKeys(value[key]);
+                        return result;
+                    }, {});
+            },
+
+            getNodeFingerprint(node) {
+                const proxy = node?.proxy;
+                if (!proxy || typeof proxy !== 'object') return '';
+                const comparable = { ...proxy };
+                delete comparable.tag;
+                delete comparable.name;
+                return JSON.stringify(this.sortObjectKeys(comparable));
+            },
+
+            mergeImportedNodes(source, importedNodes) {
+                const existingByFingerprint = new Map();
+                this.managedNodes.forEach(node => {
+                    const fingerprint = this.getNodeFingerprint(node);
+                    if (fingerprint) existingByFingerprint.set(fingerprint, node);
+                });
+
+                const importedFingerprints = new Set(importedNodes.map(node => this.getNodeFingerprint(node)).filter(Boolean));
+                const mergedNodes = importedNodes.map(node => {
+                    const existing = existingByFingerprint.get(this.getNodeFingerprint(node));
+                    if (!existing) return node;
+                    return {
+                        ...node,
+                        id: existing.id,
+                        name: existing.name,
+                        enabled: existing.enabled !== false,
+                        proxy: {
+                            ...node.proxy,
+                            tag: existing.name
+                        }
+                    };
+                });
+
+                this.managedNodes = [
+                    ...this.managedNodes.filter(node => {
+                        const fingerprint = this.getNodeFingerprint(node);
+                        return node.sourceId !== source.id && (!fingerprint || !importedFingerprints.has(fingerprint));
+                    }),
+                    ...mergedNodes
+                ];
+            },
+
+            getManagedNodesInput() {
+                const outbounds = this.managedNodes
+                    .filter(node => node.enabled !== false)
+                    .map(node => ({
+                        ...node.proxy,
+                        tag: node.name
+                    }))
+                    .filter(proxy => proxy && proxy.tag && proxy.type);
+                return outbounds.length > 0 ? JSON.stringify({ outbounds }) : '';
+            },
+
+            syncInputFromSources() {
+                const managedInput = this.getManagedNodesInput();
+                this.input = managedInput || this.sources
+                    .filter(source => source.enabled !== false)
+                    .map(source => (source.content || '').trim())
+                    .filter(Boolean)
+                    .join('\n');
+                this.persistSources();
+                this.persistNodes();
+            },
+
+            addSource() {
+                this.sources.push(this.createEmptySource(this.sources.length));
+                this.persistSources();
+            },
+
+            removeSource(index) {
+                const source = this.sources[index];
+                if (!source) return;
+                if (this.sources.length <= 1) {
+                    this.managedNodes = [];
+                    this.sources[0] = {
+                        ...this.sources[0],
+                        content: '',
+                        imported: false,
+                        nodeCount: 0,
+                        error: ''
+                    };
+                    this.syncInputFromSources();
+                    return;
+                }
+                this.managedNodes = this.managedNodes.filter(node => node.sourceId !== source.id);
+                this.sources.splice(index, 1);
+                this.syncInputFromSources();
+            },
+
+            moveSource(index, direction) {
+                const nextIndex = index + direction;
+                if (nextIndex < 0 || nextIndex >= this.sources.length) return;
+                const [source] = this.sources.splice(index, 1);
+                this.sources.splice(nextIndex, 0, source);
+                this.syncInputFromSources();
+            },
+
+            handleSourceContentChange(index) {
+                const source = this.sources[index];
+                if (!source) return;
+                source.imported = false;
+                source.nodeCount = 0;
+                source.error = '';
+                this.managedNodes = this.managedNodes.filter(node => node.sourceId !== source.id);
+                this.syncInputFromSources();
+            },
+
+            resetSubscriptionDraft() {
+                this.activeSubscriptionId = '';
+                this.subscriptionToken = '';
+                this.stableLinks = null;
+                this.subscriptionName = '';
+                this.sources = [this.createEmptySource(0)];
+                this.managedNodes = [];
+                this.syncInputFromSources();
+            },
+
+            async loadCurrentUser() {
+                try {
+                    const response = await fetch('/api/auth/me');
+                    if (!response.ok) throw new Error(await response.text());
+                    const data = await response.json();
+                    this.currentUser = data.user || null;
+                    if (this.currentUser) {
+                        await this.loadSubscriptions();
+                    } else {
+                        this.subscriptions = [];
+                    }
+                } catch (error) {
+                    console.error('Failed to load current user:', error);
+                    this.currentUser = null;
+                    this.subscriptions = [];
+                }
+            },
+
+            async submitAuth() {
+                this.authLoading = true;
+                this.authMessage = '';
+                try {
+                    const response = await fetch(`/api/auth/${this.authMode === 'register' ? 'register' : 'login'}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: this.authUsername,
+                            password: this.authPassword
+                        })
+                    });
+                    const responseText = await response.text();
+                    if (!response.ok) throw new Error(responseText || response.statusText);
+                    const data = JSON.parse(responseText);
+                    this.currentUser = data.user;
+                    this.authPassword = '';
+                    this.authMessage = this.authMode === 'register' ? '注册成功' : '登录成功';
+                    await this.loadSubscriptions();
+                } catch (error) {
+                    console.error('Auth failed:', error);
+                    this.authMessage = error?.message || '认证失败';
+                } finally {
+                    this.authLoading = false;
+                }
+            },
+
+            async logout() {
+                try {
+                    await fetch('/api/auth/logout', { method: 'POST' });
+                } catch (error) {
+                    console.error('Logout failed:', error);
+                }
+                this.currentUser = null;
+                this.subscriptions = [];
+                this.activeSubscriptionId = '';
+                this.subscriptionToken = '';
+                this.stableLinks = null;
+            },
+
+            buildStableLinks(token) {
+                if (!token) return null;
+                const origin = window.location.origin;
+                return {
+                    xray: `${origin}/sub/${token}/xray`,
+                    singbox: `${origin}/sub/${token}/singbox`,
+                    clash: `${origin}/sub/${token}/clash`,
+                    surge: `${origin}/sub/${token}/surge`
+                };
+            },
+
+            getCustomRulesPayload() {
+                try {
+                    const customRulesInput = document.querySelector('input[name="customRules"]');
+                    return customRulesInput && customRulesInput.value ? JSON.parse(customRulesInput.value) : [];
+                } catch {
+                    return [];
+                }
+            },
+
+            getBaseConfigPayload() {
+                const content = (this.configEditor || '').trim();
+                if (!content) return null;
+                if (this.configType === 'clash') {
+                    if (!window.jsyaml || !window.jsyaml.load) {
+                        throw new Error(window.APP_TRANSLATIONS.parserUnavailable || 'Parser unavailable. Please refresh and try again.');
+                    }
+                    return window.jsyaml.load(content);
+                }
+                if (this.configType === 'surge') {
+                    return parseSurgeConfigInput(this.configEditor).configObject;
+                }
+                return JSON.parse(content);
+            },
+
+            buildSubscriptionPayload() {
+                this.syncInputFromSources();
+                return {
+                    ownerToken: this.ownerToken,
+                    name: (this.subscriptionName || '').trim() || `我的订阅 ${new Date().toLocaleDateString()}`,
+                    sources: this.sources.map((source, index) => ({
+                        id: source.id,
+                        name: this.getSourceAutoName(source, index),
+                        content: source.content,
+                        enabled: source.enabled !== false
+                    })),
+                    nodes: this.managedNodes.map(node => ({
+                        id: node.id,
+                        sourceId: node.sourceId,
+                        name: node.name,
+                        type: node.type,
+                        enabled: node.enabled !== false,
+                        proxy: {
+                            ...node.proxy,
+                            tag: node.name
+                        }
+                    })),
+                    options: {
+                        selectedRules: this.selectedRules,
+                        customRules: this.getCustomRulesPayload(),
+                        groupByCountry: this.groupByCountry,
+                        includeAutoSelect: this.includeAutoSelect,
+                        enableClashUI: this.enableClashUI,
+                        externalController: this.externalController,
+                        externalUiDownloadUrl: this.externalUiDownloadUrl,
+                        ua: this.customUA,
+                        configType: this.configType,
+                        baseConfig: this.getBaseConfigPayload()
+                    }
+                };
+            },
+
+            async loadSubscriptions() {
+                if (!this.currentUser) return;
+                this.subscriptionsLoading = true;
+                try {
+                    const response = await fetch('/api/subscriptions');
+                    if (!response.ok) throw new Error(await response.text());
+                    const data = await response.json();
+                    this.subscriptions = Array.isArray(data.subscriptions) ? data.subscriptions : [];
+                } catch (error) {
+                    console.error('Failed to load subscriptions:', error);
+                    this.subscriptionMessage = `加载订阅失败：${error?.message || 'Unknown error'}`;
+                } finally {
+                    this.subscriptionsLoading = false;
+                }
+            },
+
+            async loadSubscription(id) {
+                if (!this.currentUser) {
+                    this.subscriptionMessage = '请先登录';
+                    return;
+                }
+                if (!id) return;
+                try {
+                    const response = await fetch(`/api/subscriptions/${encodeURIComponent(id)}`);
+                    if (!response.ok) throw new Error(await response.text());
+                    const data = await response.json();
+                    const subscription = data.subscription;
+                    this.activeSubscriptionId = subscription.id;
+                    this.subscriptionToken = subscription.token;
+                    this.subscriptionName = subscription.name || '';
+                    this.sources = this.loadSavedSources('');
+                    if (Array.isArray(subscription.sources) && subscription.sources.length > 0) {
+                        this.sources = subscription.sources.map((source, index) => ({
+                            id: source.id || `src_${index + 1}`,
+                            name: '',
+                            content: source.content || '',
+                            enabled: source.enabled !== false
+                        }));
+                    }
+                    this.managedNodes = Array.isArray(subscription.nodes)
+                        ? subscription.nodes.map((node, index) => this.normalizeManagedNode(node, index)).filter(Boolean)
+                        : [];
+                    const options = subscription.options || {};
+                    this.selectedRules = Array.isArray(options.selectedRules) ? options.selectedRules : [];
+                    this.selectedPredefinedRule = 'custom';
+                    this.groupByCountry = options.groupByCountry === true;
+                    this.includeAutoSelect = options.includeAutoSelect !== false;
+                    this.enableClashUI = options.enableClashUI === true;
+                    this.externalController = options.externalController || '';
+                    this.externalUiDownloadUrl = options.externalUiDownloadUrl || '';
+                    this.customUA = options.ua || '';
+                    this.configType = options.configType || 'singbox';
+                    this.configEditor = options.baseConfig ? JSON.stringify(options.baseConfig, null, 2) : '';
+                    if (Array.isArray(options.customRules)) {
+                        window.dispatchEvent(new CustomEvent('restore-custom-rules', {
+                            detail: { rules: options.customRules }
+                        }));
+                    }
+                    this.stableLinks = this.buildStableLinks(subscription.token);
+                    this.syncInputFromSources();
+                    this.showAdvanced = true;
+                    this.subscriptionMessage = '订阅已载入';
+                } catch (error) {
+                    console.error('Failed to load subscription:', error);
+                    this.subscriptionMessage = `载入订阅失败：${error?.message || 'Unknown error'}`;
+                }
+            },
+
+            async saveSubscription() {
+                if (!this.currentUser) {
+                    this.subscriptionMessage = '请先登录后再保存订阅';
+                    return;
+                }
+                this.savingSubscription = true;
+                this.subscriptionMessage = '';
+                try {
+                    const payload = this.buildSubscriptionPayload();
+                    const isUpdate = Boolean(this.activeSubscriptionId);
+                    const response = await fetch(isUpdate ? `/api/subscriptions/${encodeURIComponent(this.activeSubscriptionId)}` : '/api/subscriptions', {
+                        method: isUpdate ? 'PUT' : 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const responseText = await response.text();
+                    if (!response.ok) throw new Error(responseText || response.statusText);
+                    const data = JSON.parse(responseText);
+                    const subscription = data.subscription;
+                    this.activeSubscriptionId = subscription.id;
+                    this.subscriptionToken = subscription.token;
+                    this.subscriptionName = subscription.name;
+                    this.stableLinks = this.buildStableLinks(subscription.token);
+                    this.subscriptionMessage = isUpdate ? '订阅已更新' : '订阅已保存';
+                    await this.loadSubscriptions();
+                } catch (error) {
+                    console.error('Failed to save subscription:', error);
+                    this.subscriptionMessage = `保存订阅失败：${error?.message || 'Unknown error'}`;
+                } finally {
+                    this.savingSubscription = false;
+                }
+            },
+
+            async deleteSubscription() {
+                if (!this.currentUser) {
+                    this.subscriptionMessage = '请先登录';
+                    return;
+                }
+                if (!this.activeSubscriptionId) return;
+                if (!confirm('确定要删除当前订阅吗？')) return;
+                try {
+                    const response = await fetch(`/api/subscriptions/${encodeURIComponent(this.activeSubscriptionId)}`, {
+                        method: 'DELETE'
+                    });
+                    if (!response.ok) throw new Error(await response.text());
+                    this.subscriptionMessage = '订阅已删除';
+                    this.resetSubscriptionDraft();
+                    await this.loadSubscriptions();
+                } catch (error) {
+                    console.error('Failed to delete subscription:', error);
+                    this.subscriptionMessage = `删除订阅失败：${error?.message || 'Unknown error'}`;
+                }
+            },
+
+            async parseSource(index) {
+                const source = this.sources[index];
+                if (!source || !(source.content || '').trim()) {
+                    this.subscriptionMessage = '请先输入节点链接或订阅链接';
+                    return;
+                }
+                source.parsing = true;
+                source.error = '';
+                source.imported = false;
+                this.persistSources();
+                try {
+                    const response = await fetch('/api/parse-source', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            content: source.content,
+                            ua: this.customUA
+                        })
+                    });
+                    const responseText = await response.text();
+                    if (!response.ok) throw new Error(responseText || response.statusText);
+                    const data = JSON.parse(responseText);
+                    const nodes = Array.isArray(data.nodes) ? data.nodes : [];
+                    if (nodes.length === 0) throw new Error('No valid nodes found');
+                    const importedNodes = nodes
+                        .map((node, nodeIndex) => this.normalizeManagedNode({
+                            ...node,
+                            sourceId: source.id,
+                            name: node.name || `${this.getSourceAutoName(source, index)}-${nodeIndex + 1}`
+                        }, nodeIndex))
+                        .filter(Boolean);
+                    this.mergeImportedNodes(source, importedNodes);
+                    source.imported = true;
+                    source.nodeCount = importedNodes.length;
+                    this.subscriptionMessage = `已导入 ${importedNodes.length} 个节点`;
+                    this.syncInputFromSources();
+                } catch (error) {
+                    console.error('Failed to parse source:', error);
+                    source.error = error?.message || 'Parse failed';
+                    source.imported = false;
+                    source.nodeCount = 0;
+                    this.subscriptionMessage = `校验失败：${source.error}`;
+                    this.persistSources();
+                } finally {
+                    source.parsing = false;
+                    this.persistSources();
+                }
+            },
+
+            updateNodeName(index, name) {
+                const node = this.filteredManagedNodes[index];
+                if (!node) return;
+                const target = this.managedNodes.find(item => item.id === node.id);
+                if (!target) return;
+                target.name = name;
+                target.proxy = {
+                    ...target.proxy,
+                    tag: name
+                };
+                this.syncInputFromSources();
+            },
+
+            moveNodeById(id, direction) {
+                const index = this.managedNodes.findIndex(node => node.id === id);
+                const nextIndex = index + direction;
+                if (index < 0 || nextIndex < 0 || nextIndex >= this.managedNodes.length) return;
+                const [node] = this.managedNodes.splice(index, 1);
+                this.managedNodes.splice(nextIndex, 0, node);
+                this.syncInputFromSources();
+            },
+
+            removeNodeById(id) {
+                this.managedNodes = this.managedNodes.filter(node => node.id !== id);
+                this.syncInputFromSources();
+            },
+
+            get filteredManagedNodes() {
+                const keyword = (this.nodeSearch || '').trim().toLowerCase();
+                if (!keyword) return this.managedNodes;
+                return this.managedNodes.filter(node =>
+                    (node.name || '').toLowerCase().includes(keyword) ||
+                    (node.type || '').toLowerCase().includes(keyword)
+                );
             },
 
             applyPredefinedRule() {
@@ -341,17 +918,6 @@ export const formLogicFn = (t) => {
                 }
             },
 
-            clearAll() {
-                if (confirm(window.APP_TRANSLATIONS.confirmClearAll)) {
-                    this.input = '';
-                    this.generatedLinks = null;
-                    this.shortenedLinks = null;
-                    this.customShortCode = '';
-                    // Also clear from localStorage
-                    localStorage.removeItem('customShortCode');
-                }
-            },
-
             updateConfigIdInUrl(configId) {
                 const url = new URL(window.location.href);
                 if (configId) {
@@ -360,128 +926,6 @@ export const formLogicFn = (t) => {
                     url.searchParams.delete('configId');
                 }
                 window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
-            },
-
-            async submitForm() {
-                this.loading = true;
-                this.shortenedLinks = null; // Reset shortened links when generating new links
-                try {
-                    // Get custom rules from the child component via the hidden input
-                    const customRulesInput = document.querySelector('input[name="customRules"]');
-                    const customRules = customRulesInput && customRulesInput.value ? JSON.parse(customRulesInput.value) : [];
-
-                    // Construct URLs
-                    const origin = window.location.origin;
-                    const params = new URLSearchParams();
-                    params.append('config', this.input);
-                    params.append('ua', this.customUA);
-                    params.append('selectedRules', JSON.stringify(this.selectedRules));
-                    params.append('customRules', JSON.stringify(customRules));
-
-                    if (this.groupByCountry) params.append('group_by_country', 'true');
-                    if (!this.includeAutoSelect) params.append('include_auto_select', 'false');
-                    if (this.enableClashUI) params.append('enable_clash_ui', 'true');
-                    if (this.externalController) params.append('external_controller', this.externalController);
-                    if (this.externalUiDownloadUrl) params.append('external_ui_download_url', this.externalUiDownloadUrl);
-
-                    // Add configId if present in URL
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const configId = this.currentConfigId || urlParams.get('configId');
-                    if (configId) {
-                        params.append('configId', configId);
-                    }
-
-                    const queryString = params.toString();
-
-                    this.generatedLinks = {
-                        xray: origin + '/xray?' + queryString,
-                        singbox: origin + '/singbox?' + queryString,
-                        clash: origin + '/clash?' + queryString,
-                        surge: origin + '/surge?' + queryString
-                    };
-
-                    // Scroll to results
-                    setTimeout(() => {
-                        const resultsDiv = document.querySelector('.mt-12');
-                        if (resultsDiv) {
-                            resultsDiv.scrollIntoView({ behavior: 'smooth' });
-                        }
-                    }, 100);
-
-                } catch (error) {
-                    console.error('Error generating links:', error);
-                    alert(window.APP_TRANSLATIONS.errorGeneratingLinks);
-                } finally {
-                    this.loading = false;
-                }
-            },
-
-            async shortenLinks() {
-                // Check if links are already shortened
-                if (this.shortenedLinks) {
-                    alert(window.APP_TRANSLATIONS.alreadyShortened);
-                    return;
-                }
-
-                if (!this.generatedLinks) {
-                    return;
-                }
-
-                this.shortening = true;
-                try {
-                    const origin = window.location.origin;
-                    const shortened = {};
-
-                    // Use custom short code if provided, otherwise let backend generate it once
-                    let shortCode = this.customShortCode.trim();
-                    let isFirstRequest = true;
-
-                    // Shorten each link type
-                    for (const [type, url] of Object.entries(this.generatedLinks)) {
-                        try {
-                            let apiUrl = `${origin}/shorten-v2?url=${encodeURIComponent(url)}`;
-
-                            // For the first request, either use custom code or let backend generate
-                            // For subsequent requests, use the code from first request
-                            if (shortCode) {
-                                apiUrl += `&shortCode=${encodeURIComponent(shortCode)}`;
-                            }
-
-                            const response = await fetch(apiUrl);
-                            if (!response.ok) {
-                                throw new Error(`Failed to shorten ${type} link`);
-                            }
-                            const returnedCode = await response.text();
-
-                            // If this is the first request and no custom code was provided,
-                            // use the backend-generated code for all subsequent requests
-                            if (isFirstRequest && !shortCode) {
-                                shortCode = returnedCode;
-                            }
-                            isFirstRequest = false;
-
-                            // Map types to their corresponding path prefixes
-                            const prefixMap = {
-                                xray: 'x',
-                                singbox: 'b',
-                                clash: 'c',
-                                surge: 's'
-                            };
-
-                            shortened[type] = `${origin}/${prefixMap[type]}/${returnedCode}`;
-                        } catch (error) {
-                            console.error(`Error shortening ${type} link:`, error);
-                            throw error;
-                        }
-                    }
-
-                    this.shortenedLinks = shortened;
-                } catch (error) {
-                    console.error('Error shortening links:', error);
-                    alert(window.APP_TRANSLATIONS.shortenFailed);
-                } finally {
-                    this.shortening = false;
-                }
             },
 
             // Handle input change with debounce

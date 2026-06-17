@@ -54,6 +54,7 @@ describe('GET /subconverter', () => {
 
         // minimal: Location:CN, Private, Non-China
         expect(text).toContain('GEOSITE,geolocation-cn');
+        expect(text).toContain('GEOSITE,private');
         expect(text).toContain('GEOIP,private');
         expect(text).toContain('GEOSITE,geolocation-!cn');
 
@@ -69,8 +70,12 @@ describe('GET /subconverter', () => {
 
         // comprehensive includes all rules
         expect(text).toContain('GEOSITE,category-ads-all');
-        expect(text).toContain('GEOSITE,category-ai-!cn');
+        expect(text).toContain('GEOSITE,openai');
+        expect(text).toContain('GEOSITE,anthropic');
+        expect(text).toContain('GEOSITE,category-ai-chat-!cn');
         expect(text).toContain('GEOSITE,google');
+        expect(text).toContain('GEOSITE,private');
+        expect(text).toContain('GEOIP,private');
         expect(text).toContain('GEOSITE,bilibili');
         expect(text).toContain('GEOSITE,youtube');
         expect(text).toContain('GEOSITE,netflix');

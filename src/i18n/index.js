@@ -159,12 +159,7 @@ export const translations = {
     error: '错误：',
     validJSON: '有效的JSON',
     rules: '条规则',
-    rule: '规则',
-    // UpdateChecker
-    newVersionAvailable: '发现新版本',
-    viewRelease: '查看更新',
-    updateGuide: '更新指南',
-    later: '稍后'
+    rule: '规则'
   },
   'en-US': {
     enableClashUI: 'Enable Clash API',
@@ -321,12 +316,7 @@ export const translations = {
     error: 'Error: ',
     validJSON: 'Valid JSON',
     rules: 'rules',
-    rule: 'Rule',
-    // UpdateChecker
-    newVersionAvailable: 'New Version Available',
-    viewRelease: 'View Release',
-    updateGuide: 'Update Guide',
-    later: 'Later'
+    rule: 'Rule'
   },
   'fa': {
     missingInput: 'پارامتر ورودی وجود ندارد',
@@ -477,12 +467,7 @@ export const translations = {
     error: 'خطا: ',
     validJSON: 'JSON معتبر',
     rules: 'قوانین',
-    rule: 'قانون',
-    // UpdateChecker
-    newVersionAvailable: 'نسخه جدید موجود است',
-    viewRelease: 'مشاهده انتشار',
-    updateGuide: 'راهنمای به‌روزرسانی',
-    later: 'بعداً'
+    rule: 'قانون'
   },
   'ru': {
     missingInput: 'Отсутствует входной параметр',
@@ -633,12 +618,7 @@ export const translations = {
     error: 'Ошибка: ',
     validJSON: 'Действительный JSON',
     rules: 'правила',
-    rule: 'Правило',
-    // UpdateChecker
-    newVersionAvailable: 'Доступна новая версия',
-    viewRelease: 'Посмотреть релиз',
-    updateGuide: 'Руководство по обновлению',
-    later: 'Позже'
+    rule: 'Правило'
   }
 };
 
