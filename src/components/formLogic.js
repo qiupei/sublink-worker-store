@@ -103,6 +103,10 @@ export const formLogicFn = (t) => {
             },
             selectedRules: [],
             selectedPredefinedRule: 'balanced',
+            previewSources: [],
+            previewNodes: [],
+            previewRules: [],
+            previewPredefinedRule: 'balanced',
             subconverterCopied: false,
             groupByCountry: false,
             includeAutoSelect: true,
@@ -193,6 +197,7 @@ export const formLogicFn = (t) => {
                 });
                 this.$watch('accordionSections', val => localStorage.setItem('accordionSections', JSON.stringify(val)), { deep: true });
 
+                this.generatePreview();
                 this.loadCurrentUser();
             },
 
@@ -431,6 +436,7 @@ export const formLogicFn = (t) => {
                 this.sources = [this.createEmptySource(0)];
                 this.managedNodes = [];
                 this.syncInputFromSources();
+                this.generatePreview();
             },
 
             openNewSubscription() {
@@ -669,8 +675,8 @@ export const formLogicFn = (t) => {
                     }
                     this.stableLinks = this.buildStableLinks(subscription.token);
                     this.syncInputFromSources();
+                    this.generatePreview();
                     this.showAdvanced = true;
-                    this.subscriptionMessage = '订阅已载入';
                 } catch (error) {
                     console.error('Failed to load subscription:', error);
                     this.subscriptionMessage = `载入订阅失败：${error?.message || 'Unknown error'}`;
@@ -702,6 +708,7 @@ export const formLogicFn = (t) => {
                     this.stableLinks = this.buildStableLinks(subscription.token);
                     this.subscriptionMessage = isUpdate ? '订阅已更新' : '订阅已保存';
                     await this.loadSubscriptions();
+                    this.generatePreview();
                 } catch (error) {
                     console.error('Failed to save subscription:', error);
                     this.subscriptionMessage = `保存订阅失败：${error?.message || 'Unknown error'}`;
@@ -1090,6 +1097,7 @@ export const formLogicFn = (t) => {
 
                     // Now parse the full URL and populate form
                     this.populateFormFromUrl(urlToParse);
+                    this.generatePreview();
 
                     // Show a success message
                     const message = window.APP_TRANSLATIONS?.urlParsedSuccess || '已成功解析订阅链接配置';
@@ -1169,10 +1177,17 @@ export const formLogicFn = (t) => {
                 }
 
                 // Expand advanced options if any advanced settings are present
-                if (selectedRules || customRules || this.groupByCountry || this.enableClashUI ||
+                if (selectedRules || customRules || this.groupByCountry || this.includeAutoSelect || this.enableClashUI ||
                     externalController || externalUiDownloadUrl || ua || configId) {
                     this.showAdvanced = true;
                 }
+            },
+
+            generatePreview() {
+                this.previewSources = JSON.parse(JSON.stringify(this.sources));
+                this.previewNodes = JSON.parse(JSON.stringify(this.managedNodes));
+                this.previewRules = JSON.parse(JSON.stringify(this.selectedRules));
+                this.previewPredefinedRule = this.selectedPredefinedRule;
             }
         }
     }

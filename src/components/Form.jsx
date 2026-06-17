@@ -101,7 +101,11 @@ export const Form = (props) => {
     savingConfig: t('savingConfig'),
     configContentRequired: t('configContentRequired'),
     configSaveFailed: t('configSaveFailed'),
-    confirmClearConfig: t('confirmClearConfig')
+    confirmClearConfig: t('confirmClearConfig'),
+    custom: t('custom'),
+    minimal: t('minimal'),
+    balanced: t('balanced'),
+    comprehensive: t('comprehensive')
   };
 
   const scriptContent = `
@@ -112,6 +116,7 @@ export const Form = (props) => {
       label: t(`outboundNames.${rule.name}`),
       description: RULE_DESCRIPTIONS[rule.name] || '自定义分流规则',
       action: getRuleAction(rule.name).label,
+      actionClass: getRuleAction(rule.name).className,
       entries: getRuleEntries(rule).map(entry => ({
         label: entry.label,
         kind: entry.kind,
@@ -124,7 +129,7 @@ export const Form = (props) => {
   `;
 
   return (
-    <div x-data="formData()" x-init="init()" class="max-w-[1500px] mx-auto px-3 sm:px-4">
+    <div x-data="formData()" x-init="init()" class="w-full flex-1 flex flex-col min-h-0">
       <template x-teleport="#navbar-auth">
         <div class="relative" {...{'x-on:click.outside': 'authMenuOpen = false'}}>
           {/* Logged in state */}
@@ -336,295 +341,305 @@ export const Form = (props) => {
         </div>
       </div>
 
-      <div x-show="currentView === 'home'" class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)] gap-6 items-start">
-      <section class="space-y-6 min-w-0">
-
-      {/* Subscription Workspace */}
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 transition-all duration-300 hover:shadow-md">
-        <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 mb-5">
-          <div>
-            <div class="flex items-center gap-3 mb-2">
-              <span class="w-8 h-8 rounded-lg bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 flex items-center justify-center">
-                <i class="fas fa-layer-group text-sm"></i>
-              </span>
-              <h2 class="text-xl font-bold text-gray-900 dark:text-white">订阅工作台</h2>
-            </div>
-            <p class="text-sm text-gray-500 dark:text-gray-400">保存多源配置，生成固定订阅链接，后续修改无需更换客户端地址。</p>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <button
-              type="button"
-              x-on:click="resetSubscriptionDraft()"
-              class="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium flex items-center gap-2"
-            >
-              <i class="fas fa-plus"></i>
-              新建
-            </button>
-          </div>
-        </div>
-
-        <div>
-          <section class="space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">订阅名称</label>
-              <input
-                type="text"
-                x-model="subscriptionName"
-                placeholder="例如：家庭网关、手机主订阅、备用节点池"
-                class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-            </div>
-
-            <div class="flex items-center justify-between">
-              <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{t('shareUrls')}</h3>
-              <button
-                type="button"
-                x-on:click="addSource()"
-                class="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 text-xs font-medium flex items-center gap-2"
-              >
-                <i class="fas fa-plus"></i>
-                添加源
-              </button>
-            </div>
-
-            <div class="space-y-3">
-              <template x-for="(source, index) in sources" x-bind:key="source.id">
-                <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-4">
-                  <div class="flex flex-col md:flex-row md:items-center gap-3 mb-3">
-                    <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                      <input type="checkbox" x-model="source.enabled" x-on:change="syncInputFromSources()" class="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500" />
-                      启用
-                    </label>
-                    <div class="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold">
-                      <span x-text="getSourceAutoName(source, index)"></span>
-                    </div>
-                    <div class="flex items-center gap-1">
-                      <button type="button" x-on:click="moveSource(index, -1)" class="w-8 h-8 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-primary-600" title="上移">
-                        <i class="fas fa-chevron-up text-xs"></i>
-                      </button>
-                      <button type="button" x-on:click="moveSource(index, 1)" class="w-8 h-8 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-primary-600" title="下移">
-                        <i class="fas fa-chevron-down text-xs"></i>
-                      </button>
-                      <button type="button" x-on:click="removeSource(index)" class="w-8 h-8 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-red-600" title="删除">
-                        <i class="fas fa-times text-xs"></i>
-                      </button>
-                    </div>
-                  </div>
-                  <div class="relative">
-                    <textarea
-                      x-model="source.content"
-                      x-on:input="handleSourceContentChange(index)"
-                      rows="3"
-                      placeholder={t('urlPlaceholder')}
-                      class="w-full px-4 py-3 pr-14 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono text-sm resize-y"
-                    ></textarea>
-                    <button
-                      type="button"
-                      {...{'x-on:click.stop': 'parseSource(index)'}}
-                      x-bind:disabled="source.parsing || !(source.content || '').trim()"
-                      class="absolute right-3 top-3 w-10 h-10 rounded-xl border flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      x-bind:class="source.imported ? 'border-green-400 text-green-600 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500 hover:text-green-600 hover:border-green-300'"
-                      title="校验并导入节点"
-                    >
-                      <i class="fas" x-bind:class="source.parsing ? 'fa-spinner fa-spin' : 'fa-check'"></i>
-                    </button>
-                  </div>
-                  <div class="flex flex-wrap items-center gap-2 mt-3 text-xs">
-                    <span x-show="source.imported" class="px-2 py-1 rounded-full bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-300 border border-green-200 dark:border-green-800">
-                      <i class="fas fa-check mr-1"></i><span x-text="source.nodeCount || 0"></span> 节点
-                    </span>
-                    <span x-show="source.error" class="px-2 py-1 rounded-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 border border-red-200 dark:border-red-800" x-text="source.error"></span>
-                  </div>
-                </div>
-              </template>
-            </div>
-
-            <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-4">
-              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                <div class="flex items-center gap-3">
-                  <span class="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 text-primary-600 dark:text-primary-300 flex items-center justify-center">
-                    <i class="fas fa-list"></i>
+      <div x-show="currentView === 'home'" class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)] gap-6 items-stretch flex-1 min-h-0 xl:h-full">
+      <section class="flex flex-col min-h-0 xl:h-full xl:overflow-hidden min-w-0">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 flex-1 flex flex-col min-h-0 hover:shadow-md transition-shadow duration-300">
+          <div class="flex-1 xl:overflow-y-auto pr-1 space-y-6">
+            {/* Subscription Workspace (配置) */}
+            <div class="space-y-4">
+            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 mb-3">
+              <div>
+                <div class="flex items-center gap-3 mb-2">
+                  <span class="w-8 h-8 rounded-lg bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 flex items-center justify-center">
+                    <i class="fas fa-layer-group text-sm"></i>
                   </span>
-                  <div>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white">节点管理</h3>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">
-                      <span x-text="managedNodes.length"></span> 个已导入节点
-                    </p>
-                  </div>
+                  <h2 class="text-xl font-bold text-gray-900 dark:text-white">配置</h2>
                 </div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">保存多源配置，生成订阅链接，后续修改无需更换客户端地址。</p>
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">订阅名称</label>
                 <input
-                  type="search"
-                  x-model="nodeSearch"
-                  placeholder="搜索节点..."
-                  class="w-full sm:w-56 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  type="text"
+                  x-model="subscriptionName"
+                  placeholder="例如：家庭网关、手机主订阅、备用节点池"
+                  class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
               </div>
-              <div x-show="managedNodes.length === 0" class="text-sm text-gray-500 dark:text-gray-400 py-4 text-center border border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
-                点击上方源卡片的勾，校验成功后节点会出现在这里。
+
+              <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{t('shareUrls')}</h3>
+                <button
+                  type="button"
+                  x-on:click="addSource()"
+                  class="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 text-xs font-medium flex items-center gap-2"
+                >
+                  <i class="fas fa-plus"></i>
+                  添加源
+                </button>
               </div>
-              <div class="space-y-2" x-show="managedNodes.length > 0">
-                <template x-for="(node, index) in filteredManagedNodes" x-bind:key="node.id">
-                  <div class="flex flex-col md:flex-row md:items-center gap-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 py-3">
-                    <span class="px-2.5 py-1 rounded-md text-xs font-semibold uppercase border"
-                      x-bind:class="node.type === 'hysteria2' ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800' : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'"
-                      x-text="node.type"
-                    ></span>
-                    <input
-                      type="text"
-                      x-model="node.name"
-                      x-on:input="updateNodeName(index, node.name)"
-                      class="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    />
-                    <div class="flex items-center justify-end gap-1">
-                      <span class="text-xs text-gray-400 mr-2">顺序 <span x-text="managedNodes.findIndex(item => item.id === node.id) + 1"></span></span>
-                      <button type="button" x-on:click="moveNodeById(node.id, -1)" class="w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-primary-600" title="上移">
-                        <i class="fas fa-chevron-up text-xs"></i>
+
+              <div class="space-y-3">
+                <template x-for="(source, index) in sources" x-bind:key="source.id">
+                  <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-4">
+                    <div class="flex flex-col md:flex-row md:items-center gap-3 mb-3">
+                      <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <input type="checkbox" x-model="source.enabled" x-on:change="syncInputFromSources()" class="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500" />
+                        启用
+                      </label>
+                      <div class="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold">
+                        <span x-text="getSourceAutoName(source, index)"></span>
+                      </div>
+                      <div class="flex items-center gap-1">
+                        <button type="button" x-on:click="moveSource(index, -1)" class="w-8 h-8 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-primary-600" title="上移">
+                          <i class="fas fa-chevron-up text-xs"></i>
+                        </button>
+                        <button type="button" x-on:click="moveSource(index, 1)" class="w-8 h-8 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-primary-600" title="下移">
+                          <i class="fas fa-chevron-down text-xs"></i>
+                        </button>
+                        <button type="button" x-on:click="removeSource(index)" class="w-8 h-8 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-red-600" title="删除">
+                          <i class="fas fa-times text-xs"></i>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="relative">
+                      <textarea
+                        x-model="source.content"
+                        x-on:input="handleSourceContentChange(index)"
+                        rows="3"
+                        placeholder={t('urlPlaceholder')}
+                        class="w-full px-4 py-3 pr-14 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono text-sm resize-y"
+                      ></textarea>
+                      <button
+                        type="button"
+                        {...{'x-on:click.stop': 'parseSource(index)'}}
+                        x-bind:disabled="source.parsing || !(source.content || '').trim()"
+                        class="absolute right-3 top-3 w-10 h-10 rounded-xl border flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        x-bind:class="source.imported ? 'border-green-400 text-green-600 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500 hover:text-green-600 hover:border-green-300'"
+                        title="校验并导入节点"
+                      >
+                        <i class="fas" x-bind:class="source.parsing ? 'fa-spinner fa-spin' : 'fa-check'"></i>
                       </button>
-                      <button type="button" x-on:click="moveNodeById(node.id, 1)" class="w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-primary-600" title="下移">
-                        <i class="fas fa-chevron-down text-xs"></i>
-                      </button>
-                      <button type="button" x-on:click="removeNodeById(node.id)" class="w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-red-600" title="删除">
-                        <i class="fas fa-trash text-xs"></i>
-                      </button>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 mt-3 text-xs">
+                      <span x-show="source.imported" class="px-2 py-1 rounded-full bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-300 border border-green-200 dark:border-green-800">
+                        <i class="fas fa-check mr-1"></i><span x-text="source.nodeCount || 0"></span> 节点
+                      </span>
+                      <span x-show="source.error" class="px-2 py-1 rounded-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 border border-red-200 dark:border-red-800" x-text="source.error"></span>
                     </div>
                   </div>
                 </template>
               </div>
-            </div>
 
-            <div x-show="subscriptionMessage" class="rounded-lg px-4 py-3 text-sm bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-200" x-text="subscriptionMessage"></div>
-          </section>
-        </div>
-      </div>
-
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <span class="w-8 h-8 rounded-lg bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 flex items-center justify-center">
-              <i class="fas fa-filter text-sm"></i>
-            </span>
-            {t('ruleSelection')}
-          </h2>
-          <select
-            x-model="selectedPredefinedRule"
-            x-on:change="applyPredefinedRule()"
-            class="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          >
-            <option value="custom">{t('custom')}</option>
-            <option value="minimal">{t('minimal')}</option>
-            <option value="balanced">{t('balanced')}</option>
-            <option value="comprehensive">{t('comprehensive')}</option>
-          </select>
-        </div>
-
-        <div class="space-y-3">
-          {UNIFIED_RULES.map((rule) => {
-            const entries = getRuleEntries(rule);
-            const action = getRuleAction(rule.name);
-            return (
-              <details class="group rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 overflow-hidden">
-                <summary class="list-none cursor-pointer px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 hover:bg-white dark:hover:bg-gray-800 transition-colors">
-                  <div class="flex items-start gap-3 flex-1 min-w-0">
-                    <span class="mt-1 text-gray-400 dark:text-gray-500 transition-transform group-open:rotate-90">
-                      <i class="fas fa-chevron-right text-xs"></i>
+              <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-4">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                  <div class="flex items-center gap-3">
+                    <span class="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 text-primary-600 dark:text-primary-300 flex items-center justify-center">
+                      <i class="fas fa-list"></i>
                     </span>
-                    <input
-                      type="checkbox"
-                      value={rule.name}
-                      x-model="selectedRules"
-                      {...{'x-on:click.stop': ''}}
-                      x-on:change="selectedPredefinedRule = 'custom'"
-                      class="mt-0.5 w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600"
-                    />
-                    <div class="min-w-0">
-                      <div class="flex flex-wrap items-center gap-2">
-                        <span class="font-semibold text-gray-900 dark:text-white">
-                          {t(`outboundNames.${rule.name}`)}
-                        </span>
-                        <span class={`text-xs px-2 py-0.5 rounded-full border ${action.className}`}>
-                          {action.label}
-                        </span>
-                      </div>
-                      <div class="text-sm text-primary-600 dark:text-primary-300 mt-1">
-                        {RULE_DESCRIPTIONS[rule.name] || '自定义分流规则'} · {entries.length} 规则
-                      </div>
+                    <div>
+                      <h3 class="text-sm font-semibold text-gray-900 dark:text-white">节点管理</h3>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">
+                        <span x-text="managedNodes.length"></span> 个已导入节点
+                      </p>
                     </div>
                   </div>
-                </summary>
-                <div class="px-4 pb-4 pt-1 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                  <div class="space-y-3">
-                    {entries.map(entry => (
-                      <div class="rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 px-4 py-3">
-                        <div class="flex flex-wrap items-center gap-2 mb-2">
-                          <span class="font-semibold text-gray-900 dark:text-white">
-                            {entry.label}
-                          </span>
-                          <span class="text-xs px-2 py-0.5 rounded-full bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 border border-primary-100 dark:border-primary-800">
-                            {entry.badge}
-                          </span>
-                          <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
-                            {entry.kind}
-                          </span>
-                        </div>
-                        <div class="font-mono text-sm text-gray-500 dark:text-gray-400 break-all">
-                          {entry.path}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <input
+                    type="search"
+                    x-model="nodeSearch"
+                    placeholder="搜索节点..."
+                    class="w-full sm:w-56 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
                 </div>
-              </details>
-            );
-          })}
-        </div>
-      </div>
+                <div x-show="managedNodes.length === 0" class="text-sm text-gray-500 dark:text-gray-400 py-4 text-center border border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
+                  点击上方源卡片的勾，校验成功后节点会出现在这里。
+                </div>
+                <div class="space-y-2" x-show="managedNodes.length > 0">
+                  <template x-for="(node, index) in filteredManagedNodes" x-bind:key="node.id">
+                    <div class="flex flex-col md:flex-row md:items-center gap-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 py-3">
+                      <span class="px-2.5 py-1 rounded-md text-xs font-semibold uppercase border"
+                        x-bind:class="node.type === 'hysteria2' ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800' : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'"
+                        x-text="node.type"
+                      ></span>
+                      <input
+                        type="text"
+                        x-model="node.name"
+                        x-on:input="updateNodeName(index, node.name)"
+                        class="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                      <div class="flex items-center justify-end gap-1">
+                        <span class="text-xs text-gray-400 mr-2">顺序 <span x-text="managedNodes.findIndex(item => item.id === node.id) + 1"></span></span>
+                        <button type="button" x-on:click="moveNodeById(node.id, -1)" class="w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-primary-600" title="上移">
+                          <i class="fas fa-chevron-up text-xs"></i>
+                        </button>
+                        <button type="button" x-on:click="moveNodeById(node.id, 1)" class="w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-primary-600" title="下移">
+                          <i class="fas fa-chevron-down text-xs"></i>
+                        </button>
+                        <button type="button" x-on:click="removeNodeById(node.id)" class="w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-red-600" title="删除">
+                          <i class="fas fa-trash text-xs"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
 
-      </section>
+              <div x-show="subscriptionMessage" class="rounded-lg px-4 py-3 text-sm bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-200" x-text="subscriptionMessage"></div>
+            </div>
+          </div>
 
-      <aside class="xl:sticky xl:top-6 min-w-0" x-data="{ copiedStable: null }">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 transition-all duration-300 hover:shadow-md">
-          <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-5">
-            <div>
+          {/* Divider */}
+          <div class="border-t border-gray-200 dark:border-gray-700 shrink-0"></div>
+
+          {/* Rule Selection (规则) */}
+          <div class="space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
               <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <span class="w-8 h-8 rounded-lg bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 flex items-center justify-center">
-                  <i class="fas fa-eye text-sm"></i>
+                  <i class="fas fa-filter text-sm"></i>
                 </span>
-                预览
+                {t('ruleSelection')}
               </h2>
-              <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">实时查看当前订阅会包含哪些源、节点和规则。</p>
+              <select
+                x-model="selectedPredefinedRule"
+                x-on:change="applyPredefinedRule()"
+                class="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value="custom">{t('custom')}</option>
+                <option value="minimal">{t('minimal')}</option>
+                <option value="balanced">{t('balanced')}</option>
+                <option value="comprehensive">{t('comprehensive')}</option>
+              </select>
             </div>
-            <div class="inline-flex rounded-xl bg-gray-100 dark:bg-gray-900 p-1 text-sm font-medium">
-              <span class="px-3 py-1.5 rounded-lg text-gray-500 dark:text-gray-400">YAML</span>
-              <span class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm">可视化</span>
+
+            <div class="space-y-3">
+              {UNIFIED_RULES.map((rule) => {
+                const entries = getRuleEntries(rule);
+                const action = getRuleAction(rule.name);
+                return (
+                  <details class="group rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 overflow-hidden">
+                    <summary class="list-none cursor-pointer px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 hover:bg-white dark:hover:bg-gray-800 transition-colors">
+                      <div class="flex items-start gap-3 flex-1 min-w-0">
+                        <span class="mt-1 text-gray-400 dark:text-gray-500 transition-transform group-open:rotate-90">
+                          <i class="fas fa-chevron-right text-xs"></i>
+                        </span>
+                        <input
+                          type="checkbox"
+                          value={rule.name}
+                          x-model="selectedRules"
+                          {...{'x-on:click.stop': ''}}
+                          x-on:change="selectedPredefinedRule = 'custom'"
+                          class="mt-0.5 w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600"
+                        />
+                        <div class="min-w-0">
+                          <div class="flex flex-wrap items-center gap-2">
+                            <span class="font-semibold text-gray-900 dark:text-white">
+                              {t(`outboundNames.${rule.name}`)}
+                            </span>
+                            <span class={`text-xs px-2 py-0.5 rounded-full border ${action.className}`}>
+                              {action.label}
+                            </span>
+                          </div>
+                          <div class="text-sm text-primary-600 dark:text-primary-300 mt-1">
+                            {RULE_DESCRIPTIONS[rule.name] || '自定义分流规则'} · {entries.length} 规则
+                          </div>
+                        </div>
+                      </div>
+                    </summary>
+                    <div class="px-4 pb-4 pt-1 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                      <div class="space-y-3">
+                        {entries.map(entry => (
+                          <div class="rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 px-4 py-3">
+                            <div class="flex flex-wrap items-center gap-2 mb-2">
+                              <span class="font-semibold text-gray-900 dark:text-white">
+                                {entry.label}
+                              </span>
+                              <span class="text-xs px-2 py-0.5 rounded-full bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 border border-primary-100 dark:border-primary-800">
+                                {entry.badge}
+                              </span>
+                              <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
+                                {entry.kind}
+                              </span>
+                            </div>
+                            <div class="font-mono text-sm text-gray-500 dark:text-gray-400 break-all">
+                              {entry.path}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          </div>
+          </div>
+          {/* Card Footer Actions (shrink-0) */}
+          <div class="mt-6 pt-5 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-3 shrink-0">
+            <button
+              type="button"
+              x-on:click="generatePreview()"
+              class="flex-1 px-4 py-3 rounded-xl bg-primary-600 text-white hover:bg-primary-700 font-semibold flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20 transition-all duration-200 active:scale-[0.98]"
+            >
+              <i class="fas fa-wand-magic-sparkles text-sm"></i>
+              <span>生成配置</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="flex flex-col min-h-0 xl:h-full xl:overflow-hidden min-w-0" x-data="{ copiedStable: null }">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 flex-1 flex flex-col min-h-0 hover:shadow-md transition-shadow duration-300">
+          
+          {/* Preview Header & Stats (shrink-0) */}
+          <div class="shrink-0">
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-5">
+              <div>
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <span class="w-8 h-8 rounded-lg bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 flex items-center justify-center">
+                    <i class="fas fa-eye text-sm"></i>
+                  </span>
+                  预览
+                </h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">实时查看当前订阅会包含哪些源、节点和规则。</p>
+              </div>
+              <div class="inline-flex rounded-xl bg-gray-100 dark:bg-gray-900 p-1 text-sm font-medium">
+                <span class="px-3 py-1.5 rounded-lg text-gray-500 dark:text-gray-400">YAML</span>
+                <span class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm">可视化</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3 mb-5">
+              <div class="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 p-4 text-center">
+                <div class="text-2xl font-bold text-primary-600 dark:text-primary-300" x-text="previewNodes.length">0</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">节点</div>
+              </div>
+              <div class="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 p-4 text-center">
+                <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-300" x-text="previewSources.filter(source => source.enabled !== false && (source.content || '').trim()).length">0</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">启用源</div>
+              </div>
+              <div class="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 p-4 text-center">
+                <div class="text-2xl font-bold text-violet-600 dark:text-violet-300" x-text="previewRules.length">0</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">规则组</div>
+              </div>
             </div>
           </div>
 
-          <div class="grid grid-cols-3 gap-3 mb-5">
-            <div class="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 p-4 text-center">
-              <div class="text-2xl font-bold text-primary-600 dark:text-primary-300" x-text="managedNodes.length">0</div>
-              <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">节点</div>
-            </div>
-            <div class="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 p-4 text-center">
-              <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-300" x-text="sources.filter(source => source.enabled !== false && (source.content || '').trim()).length">0</div>
-              <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">启用源</div>
-            </div>
-            <div class="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 p-4 text-center">
-              <div class="text-2xl font-bold text-violet-600 dark:text-violet-300" x-text="selectedRules.length">0</div>
-              <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">规则组</div>
-            </div>
-          </div>
-
-          <div class="space-y-5">
+          {/* Scrollable Preview Content (flex-1 overflow-y-auto) */}
+          <div class="flex-1 xl:overflow-y-auto pr-1 space-y-5">
             <section>
               <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                   <i class="fas fa-diagram-project text-gray-400"></i>
                   规则预览
                 </h3>
-                <span class="text-xs text-gray-500 dark:text-gray-400" x-text="selectedPredefinedRule === 'custom' ? '自定义' : selectedPredefinedRule"></span>
+                <span class="text-xs text-gray-500 dark:text-gray-400" x-text="window.APP_TRANSLATIONS[previewPredefinedRule] || previewPredefinedRule"></span>
               </div>
-              <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
-                <template x-for="rule in (window.RULE_PREVIEW_META || []).filter(item => selectedRules.includes(item.name))" x-bind:key="rule.name">
+              <div class="space-y-2">
+                <template x-for="rule in (window.RULE_PREVIEW_META || []).filter(item => previewRules.includes(item.name))" x-bind:key="rule.name">
                   <details class="group rounded-xl border border-primary-100 dark:border-primary-900/70 bg-primary-50/40 dark:bg-primary-950/20 overflow-hidden">
                     <summary class="list-none cursor-pointer px-3 py-3 flex items-center gap-3">
                       <span class="text-gray-400 transition-transform group-open:rotate-90">
@@ -633,7 +648,7 @@ export const Form = (props) => {
                       <div class="min-w-0 flex-1">
                         <div class="flex items-center justify-between gap-3">
                           <span class="font-semibold text-sm text-gray-900 dark:text-white truncate" x-text="rule.label"></span>
-                          <span class="text-xs px-2 py-0.5 rounded-full bg-white dark:bg-gray-800 text-primary-600 dark:text-primary-300 border border-primary-100 dark:border-primary-900" x-text="rule.action"></span>
+                          <span class="text-xs px-2 py-0.5 rounded-full border" x-bind:class="rule.actionClass" x-text="rule.action"></span>
                         </div>
                         <div class="text-xs text-gray-500 dark:text-gray-400 mt-1" x-text="`${rule.description} · ${rule.entries.length} 条`"></div>
                       </div>
@@ -648,7 +663,7 @@ export const Form = (props) => {
                     </div>
                   </details>
                 </template>
-                <div x-show="selectedRules.length === 0" class="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                <div x-show="previewRules.length === 0" class="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
                   暂未选择规则
                 </div>
               </div>
@@ -660,17 +675,17 @@ export const Form = (props) => {
                   <i class="fas fa-server text-gray-400"></i>
                   节点列表
                 </h3>
-                <span class="text-xs text-gray-500 dark:text-gray-400">共 <span x-text="managedNodes.length"></span> 个</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400">共 <span x-text="previewNodes.length"></span> 个</span>
               </div>
               <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
-                <template x-for="node in managedNodes" x-bind:key="node.id">
+                <template x-for="node in previewNodes" x-bind:key="node.id">
                   <div class="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
                     <span class="w-2.5 h-2.5 rounded-full bg-primary-500 shrink-0"></span>
                     <span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-800 dark:text-gray-100" x-text="node.name"></span>
                     <span class="px-2 py-0.5 rounded-md text-xs uppercase bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900" x-text="node.type"></span>
                   </div>
                 </template>
-                <div x-show="managedNodes.length === 0" class="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                <div x-show="previewNodes.length === 0" class="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
                   校验源后会显示节点
                 </div>
               </div>
@@ -680,7 +695,7 @@ export const Form = (props) => {
               <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                   <i class="fas fa-anchor text-gray-400"></i>
-                  固定订阅链接
+                  订阅链接
                 </h3>
                 <span class="text-xs font-mono text-gray-400 truncate max-w-40" x-text="subscriptionToken"></span>
               </div>
@@ -716,7 +731,8 @@ export const Form = (props) => {
             </section>
           </div>
 
-          <div class="mt-6 pt-5 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-3">
+          {/* Card Footer Actions (shrink-0) */}
+          <div class="mt-6 pt-5 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-3 shrink-0">
             <button
               type="button"
               x-on:click="saveSubscription()"
@@ -725,23 +741,6 @@ export const Form = (props) => {
             >
               <i class="fas" x-bind:class="savingSubscription ? 'fa-spinner fa-spin' : 'fa-save'"></i>
               <span x-text="activeSubscriptionId ? '更新订阅' : '保存订阅'">保存订阅</span>
-            </button>
-            <button
-              type="button"
-              x-on:click="resetSubscriptionDraft()"
-              class="px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 font-semibold flex items-center justify-center gap-2"
-            >
-              <i class="fas fa-plus"></i>
-              新建
-            </button>
-            <button
-              type="button"
-              x-show="activeSubscriptionId"
-              x-on:click="deleteSubscription()"
-              class="px-4 py-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 font-semibold flex items-center justify-center gap-2"
-            >
-              <i class="fas fa-trash"></i>
-              删除
             </button>
           </div>
         </div>

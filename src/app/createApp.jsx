@@ -4,7 +4,6 @@ import { Hono } from 'hono';
 import { Layout } from '../components/Layout.jsx';
 import { Navbar } from '../components/Navbar.jsx';
 import { Form } from '../components/Form.jsx';
-import { Footer } from '../components/Footer.jsx';
 import { SingboxConfigBuilder } from '../builders/SingboxConfigBuilder.js';
 import { ClashConfigBuilder } from '../builders/ClashConfigBuilder.js';
 import { SurgeConfigBuilder } from '../builders/SurgeConfigBuilder.js';
@@ -59,24 +58,23 @@ export function createApp(bindings = {}) {
 
         return c.html(
             <Layout title={t('pageTitle')} description={t('pageDescription')} keywords={t('pageKeywords')}>
-                <div class="flex flex-col min-h-screen">
+                <div class="flex flex-col min-h-screen xl:h-screen xl:overflow-hidden">
                     <Navbar activeView={activeView} />
-                    <main class="flex-1">
-                        <div class="max-w-[1500px] mx-auto px-4 py-8 pt-24">
-                            <div>
-                                <div class="text-center mb-8 pt-8">
-                                    <h1 class="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4 tracking-tight">
+                    <main class="flex-1 min-h-0 xl:overflow-hidden">
+                        <div class="max-w-[1500px] w-full mx-auto px-4 py-8 pt-24 xl:py-4 xl:pt-20 xl:pb-2 h-full flex flex-col min-h-0">
+                            <div class="flex flex-col min-h-0 flex-1">
+                                <div class="text-center mb-6 xl:mb-4 shrink-0">
+                                    <h1 class="text-3xl md:text-4xl xl:text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">
                                         {activeView === 'subscriptions' ? '我的订阅' : APP_NAME}
                                     </h1>
-                                    <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-                                        {activeView === 'subscriptions' ? '管理你的固定订阅链接，快速编辑、复制和删除。' : subtitle}
+                                    <p class="text-sm md:text-base xl:text-sm text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+                                        {activeView === 'subscriptions' ? '管理你的订阅链接，快速编辑、复制和删除。' : subtitle}
                                     </p>
                                 </div>
                                 <Form t={t} lang={lang} />
                             </div>
                         </div>
                     </main>
-                    <Footer />
                 </div>
             </Layout>
         );

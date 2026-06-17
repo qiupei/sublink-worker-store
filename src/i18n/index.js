@@ -46,7 +46,7 @@ export const translations = {
     customPath: '自定义路径',
     savedPaths: '已保存的路径',
     shortenLinks: '生成短链接',
-    ruleSelection: '规则选择',
+    ruleSelection: '规则',
     ruleSelectionTooltip: '选择您需要的规则集',
     copySubconverterUrl: '复制配置地址',
     copiedSubconverterUrl: '已复制！',
