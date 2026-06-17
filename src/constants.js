@@ -1,5 +1,5 @@
 // Application constants
-export const APP_NAME = 'Nodelink Hub';
+export const APP_NAME = 'SubLink Quin';
 export const APP_VERSION = '2.4.2';
 
 // SEO and metadata

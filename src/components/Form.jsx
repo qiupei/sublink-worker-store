@@ -325,10 +325,47 @@ export const Form = (props) => {
                       <i class="fas fa-gear"></i>
                       编辑
                     </button>
-                    <button type="button" x-on:click="copySubscriptionLink(subscription.token, 'clash')" class="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 text-sm font-semibold flex items-center gap-2">
-                      <i class="fas fa-copy"></i>
-                      复制 Clash
-                    </button>
+                    <div class="relative">
+                      <button
+                        type="button"
+                        x-on:click="activeCopyMenuId = (activeCopyMenuId === subscription.id ? '' : subscription.id)"
+                        class="px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 border transition-all duration-200"
+                        x-bind:class="copiedSubscriptionId === subscription.id ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 border-transparent'"
+                      >
+                        <i class="fas" x-bind:class="copiedSubscriptionId === subscription.id ? 'fa-circle-check text-emerald-600 dark:text-emerald-400' : 'fa-copy'"></i>
+                        <span x-text="copiedSubscriptionId === subscription.id ? '复制成功' : '复制链接'"></span>
+                      </button>
+                      {/* 展开的 4 种链接复制选项绝对定位浮层 */}
+                      <div
+                        x-show="activeCopyMenuId === subscription.id"
+                        x-cloak
+                        {...{'x-on:click.outside': "activeCopyMenuId = ''"}}
+                        x-transition:enter="transition ease-out duration-150"
+                        x-transition:enter-start="opacity-0 scale-95 translate-y-[-4px]"
+                        x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                        x-transition:leave="transition ease-in duration-100"
+                        x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                        x-transition:leave-end="opacity-0 scale-95 translate-y-[-4px]"
+                        class="absolute right-0 top-full mt-1.5 w-40 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-xl border border-gray-200/60 dark:border-gray-700/60 shadow-xl py-1.5 z-50 flex flex-col select-none"
+                      >
+                        <button type="button" x-on:click="copySubscriptionLink(subscription.token, 'clash', subscription.id); activeCopyMenuId = ''" class="w-full px-4 py-2 hover:bg-primary-50 dark:hover:bg-primary-950/30 hover:text-primary-600 dark:hover:text-primary-300 text-gray-700 dark:text-gray-200 text-xs font-semibold text-left transition-all duration-150 flex items-center gap-2.5 hover:pl-5">
+                          <span class="w-1.5 h-1.5 rounded-full bg-primary-500 shrink-0"></span>
+                          Clash
+                        </button>
+                        <button type="button" x-on:click="copySubscriptionLink(subscription.token, 'singbox', subscription.id); activeCopyMenuId = ''" class="w-full px-4 py-2 hover:bg-primary-50 dark:hover:bg-primary-950/30 hover:text-primary-600 dark:hover:text-primary-300 text-gray-700 dark:text-gray-200 text-xs font-semibold text-left transition-all duration-150 flex items-center gap-2.5 hover:pl-5">
+                          <span class="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500 shrink-0"></span>
+                          Sing-Box
+                        </button>
+                        <button type="button" x-on:click="copySubscriptionLink(subscription.token, 'xray', subscription.id); activeCopyMenuId = ''" class="w-full px-4 py-2 hover:bg-primary-50 dark:hover:bg-primary-950/30 hover:text-primary-600 dark:hover:text-primary-300 text-gray-700 dark:text-gray-200 text-xs font-semibold text-left transition-all duration-150 flex items-center gap-2.5 hover:pl-5">
+                          <span class="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500 shrink-0"></span>
+                          Xray
+                        </button>
+                        <button type="button" x-on:click="copySubscriptionLink(subscription.token, 'surge', subscription.id); activeCopyMenuId = ''" class="w-full px-4 py-2 hover:bg-primary-50 dark:hover:bg-primary-950/30 hover:text-primary-600 dark:hover:text-primary-300 text-gray-700 dark:text-gray-200 text-xs font-semibold text-left transition-all duration-150 flex items-center gap-2.5 hover:pl-5">
+                          <span class="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500 shrink-0"></span>
+                          Surge
+                        </button>
+                      </div>
+                    </div>
                     <button type="button" x-on:click="deleteSubscriptionById(subscription.id)" class="px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 text-sm font-semibold flex items-center gap-2">
                       <i class="fas fa-trash"></i>
                       删除
@@ -605,10 +642,6 @@ export const Form = (props) => {
                   预览
                 </h2>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">实时查看当前订阅会包含哪些源、节点和规则。</p>
-              </div>
-              <div class="inline-flex rounded-xl bg-gray-100 dark:bg-gray-900 p-1 text-sm font-medium">
-                <span class="px-3 py-1.5 rounded-lg text-gray-500 dark:text-gray-400">YAML</span>
-                <span class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm">可视化</span>
               </div>
             </div>
 

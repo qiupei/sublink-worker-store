@@ -84,6 +84,8 @@ export const formLogicFn = (t) => {
             subscriptionName: '',
             subscriptions: [],
             subscriptionsLoading: false,
+            activeCopyMenuId: '',
+            copiedSubscriptionId: '',
             subscriptionMessage: '',
             activeSubscriptionId: '',
             subscriptionToken: '',
@@ -538,20 +540,20 @@ export const formLogicFn = (t) => {
                 });
             },
 
-            copySubscriptionLink(token, type = 'clash') {
+            copySubscriptionLink(token, type = 'clash', subscriptionId = '') {
                 const links = this.buildStableLinks(token);
                 const url = links?.[type] || links?.clash;
                 if (!url) return;
                 navigator.clipboard.writeText(url).then(() => {
-                    this.subscriptionMessage = '订阅链接已复制';
-                    setTimeout(() => {
-                        if (this.subscriptionMessage === '订阅链接已复制') {
-                            this.subscriptionMessage = '';
-                        }
-                    }, 2000);
-                }).catch(() => {
-                    this.subscriptionMessage = '复制失败';
-                });
+                    if (subscriptionId) {
+                        this.copiedSubscriptionId = subscriptionId;
+                        setTimeout(() => {
+                            if (this.copiedSubscriptionId === subscriptionId) {
+                                this.copiedSubscriptionId = '';
+                            }
+                        }, 2000);
+                    }
+                }).catch(() => {});
             },
 
             getCustomRulesPayload() {
