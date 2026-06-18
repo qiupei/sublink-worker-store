@@ -66,6 +66,10 @@ Sing-Box • Clash • Xray/V2Ray • Surge
 
 Issues and Pull Requests are welcome to improve this project.
 
+## 🔗 Friendly Links
+
+- [LINUX DO](https://linux.do/)
+
 ## 🙏 Acknowledgements
 
 This project is a secondary development (fork) based on the excellent open-source project [7Sageer/sublink-worker](https://github.com/7Sageer/sublink-worker). Sincere thanks to the original author and all contributors for their outstanding work.

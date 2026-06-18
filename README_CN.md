@@ -66,6 +66,10 @@ Sing-Box • Clash • Xray/V2Ray • Surge
 
 欢迎提交 Issue 和 Pull Request 来帮助改进该项目。
 
+## 🔗 友情链接
+
+- [LINUX DO 社区](https://linux.do/)
+
 ## 🙏 致谢与声明
 
 本项目基于优秀的开源项目 [7Sageer/sublink-worker](https://github.com/7Sageer/sublink-worker) 进行二次开发与改造。在此对原作者及所有贡献者的杰出工作表示最诚挚的感谢！
