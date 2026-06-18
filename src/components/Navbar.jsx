@@ -9,34 +9,38 @@ export const Navbar = ({ activeView = 'home' } = {}) => {
     ];
 
     return (
-        <nav class="fixed top-0 w-full bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-sm border-b border-gray-200 dark:border-gray-800 z-50 transition-all duration-300">
+        <nav class="fixed top-0 w-full bg-[#f7f5f0]/95 dark:bg-[#111827]/95 backdrop-blur-md border-b-4 border-[#2c2523] dark:border-[#f7f5f0] z-50 transition-all duration-300">
             <div class="max-w-[1500px] mx-auto px-4">
                 <div class="flex items-center justify-between h-16 gap-4">
-                    <a href="/" class="flex items-center gap-2 text-xl font-bold text-gray-900 dark:text-white hover:text-primary-500 dark:hover:text-primary-400 transition-colors">
-                        <img src="/favicon.ico" alt={`${APP_NAME} logo`} class="w-6 h-6" />
-                        <span>{APP_NAME}</span>
+                    <a href="/" class="flex items-center gap-2 text-base font-bold text-[#2c2523] dark:text-[#f7f5f0] hover:text-[#c21807] dark:hover:text-[#c21807] font-press-start tracking-tighter transition-colors">
+                        <img src="/favicon.ico" alt={`${APP_NAME} logo`} class="w-6 h-6 border-2 border-[#2c2523] dark:border-[#f7f5f0]" />
+                        <span class="text-sm sm:text-base">{APP_NAME}</span>
                     </a>
-                    <div class="hidden sm:inline-flex items-center rounded-2xl bg-gray-100/80 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 p-1 shadow-sm">
+                    <div class="hidden sm:inline-flex items-center border-2 border-[#2c2523] dark:border-[#f7f5f0] bg-white dark:bg-gray-800 p-0.5 shadow-[2px_2px_0_#2c2523] dark:shadow-[2px_2px_0_#f7f5f0]">
                         {navItems.map(item => (
                             <a
                                 href={item.href}
-                                class={`px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors ${activeView === item.key ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+                                class={`px-4 py-1.5 text-sm font-semibold flex items-center gap-2 transition-all ${
+                                    activeView === item.key 
+                                        ? 'bg-[#c21807] text-white' 
+                                        : 'text-[#2c2523] dark:text-[#f7f5f0] hover:bg-[#2c2523]/5 dark:hover:bg-white/5'
+                                }`}
                             >
                                 <i class={`fas ${item.icon} text-xs`}></i>
-                                {item.label}
+                                <span class="font-pixel">{item.label}</span>
                             </a>
                         ))}
                     </div>
                     <div class="flex items-center gap-3">
                         <a
                             href={activeView === 'subscriptions' ? '/' : '/?view=subscriptions'}
-                            class="sm:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors"
+                            class="sm:hidden w-9 h-9 border-2 border-[#2c2523] dark:border-[#f7f5f0] bg-white dark:bg-gray-800 text-[#2c2523] dark:text-[#f7f5f0] flex items-center justify-center shadow-[2px_2px_0_#2c2523] dark:shadow-[2px_2px_0_#f7f5f0] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
                             aria-label={activeView === 'subscriptions' ? '首页' : '我的订阅'}
                         >
-                            <i class={`fas ${activeView === 'subscriptions' ? 'fa-house' : 'fa-table-cells-large'}`}></i>
+                            <i class={`fas ${activeView === 'subscriptions' ? 'fa-house' : 'fa-table-cells-large'} text-sm`}></i>
                         </a>
                         <button
-                            class="w-10 h-10 rounded-xl text-gray-500 hover:text-gray-800 dark:hover:text-white hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors flex items-center justify-center"
+                            class="nes-btn w-9 h-9 flex items-center justify-center bg-white dark:bg-gray-800 text-[#2c2523] dark:text-[#f7f5f0] p-0"
                             x-on:click="toggleDarkMode()"
                             aria-label="Toggle dark mode"
                         >

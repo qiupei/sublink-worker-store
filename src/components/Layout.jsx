@@ -13,7 +13,7 @@ export const Layout = (props) => {
         <meta name="description" content="Convert and optimize your subscription links easily" />
         <meta name="keywords" content="${APP_KEYWORDS}" />
         <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&family=VT323&display=swap" rel="stylesheet">
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
         <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
@@ -55,10 +55,17 @@ export const Layout = (props) => {
                     850: '#1f2937',
                     900: '#111827',
                     950: '#0b0f19', // Deep dark for background
+                  },
+                  nes: {
+                    red: '#c21807',
+                    cream: '#f7f5f0',
+                    dark: '#2c2523',
                   }
                 },
                 fontFamily: {
                   sans: ['Inter', 'sans-serif'],
+                  'press-start': ['"Press Start 2P"', 'monospace'],
+                  'pixel': ['"Silkscreen"', '"VT323"', 'monospace'],
                 }
               }
             }
@@ -66,9 +73,55 @@ export const Layout = (props) => {
         </script>
         <style>
           body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            font-family: 'Silkscreen', system-ui, -apple-system, sans-serif;
             position: relative;
             min-height: 100vh;
+          }
+
+          /* NES pixel art utility classes */
+          .nes-card {
+            border: 4px solid #2c2523;
+            background: #ffffff;
+            box-shadow: 4px 4px 0 #2c2523;
+            border-radius: 0px !important;
+          }
+          .dark .nes-card {
+            border-color: #f7f5f0;
+            background: #111827;
+            box-shadow: 4px 4px 0 #f7f5f0;
+          }
+
+          .nes-btn {
+            font-family: 'Silkscreen', monospace;
+            font-weight: bold;
+            border: 4px solid #2c2523;
+            box-shadow: 3px 3px 0 #2c2523;
+            border-radius: 0px !important;
+            transition: transform 0.05s, box-shadow 0.05s;
+          }
+          .nes-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0 #2c2523;
+          }
+          .dark .nes-btn {
+            border-color: #f7f5f0;
+            box-shadow: 3px 3px 0 #f7f5f0;
+          }
+          .dark .nes-btn:active {
+            box-shadow: 1px 1px 0 #f7f5f0;
+          }
+
+          .nes-input, .nes-select, .nes-textarea {
+            font-family: monospace;
+            border: 4px solid #2c2523;
+            background: #ffffff;
+            box-sizing: border-box;
+            border-radius: 0px !important;
+          }
+          .dark .nes-input, .dark .nes-select, .dark .nes-textarea {
+            border-color: #f7f5f0;
+            background: #1f2937;
+            color: #ffffff;
           }
 
           /* Subtle radial gradient background */
@@ -78,18 +131,16 @@ export const Layout = (props) => {
             inset: 0;
             z-index: -2;
             background:
-              radial-gradient(ellipse 80% 50% at 50% -20%, rgba(10, 163, 235, 0.08) 0%, transparent 60%),
-              radial-gradient(ellipse 60% 40% at 90% 80%, rgba(51, 197, 255, 0.05) 0%, transparent 50%),
-              radial-gradient(ellipse 50% 30% at 10% 90%, rgba(0, 130, 202, 0.04) 0%, transparent 50%);
+              radial-gradient(ellipse 80% 50% at 50% -20%, rgba(194, 24, 7, 0.06) 0%, transparent 60%),
+              radial-gradient(ellipse 60% 40% at 90% 80%, rgba(44, 37, 35, 0.04) 0%, transparent 50%);
             pointer-events: none;
           }
 
           .dark body::before,
           html.dark body::before {
             background:
-              radial-gradient(ellipse 80% 50% at 50% -20%, rgba(10, 163, 235, 0.12) 0%, transparent 60%),
-              radial-gradient(ellipse 60% 40% at 90% 80%, rgba(51, 197, 255, 0.06) 0%, transparent 50%),
-              radial-gradient(ellipse 50% 30% at 10% 90%, rgba(0, 130, 202, 0.05) 0%, transparent 50%);
+              radial-gradient(ellipse 80% 50% at 50% -20%, rgba(194, 24, 7, 0.08) 0%, transparent 60%),
+              radial-gradient(ellipse 60% 40% at 90% 80%, rgba(247, 245, 240, 0.04) 0%, transparent 50%);
           }
 
           /* Subtle noise texture overlay */
@@ -98,7 +149,7 @@ export const Layout = (props) => {
             position: fixed;
             inset: 0;
             z-index: -1;
-            opacity: 0.3;
+            opacity: 0.25;
             pointer-events: none;
             background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
             background-repeat: repeat;
@@ -107,7 +158,7 @@ export const Layout = (props) => {
 
           .dark body::after,
           html.dark body::after {
-            opacity: 0.15;
+            opacity: 0.12;
           }
 
           [x-cloak] { display: none !important; }
@@ -135,7 +186,7 @@ export const Layout = (props) => {
 
         </script>
       </head>
-      <body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300">
+      <body class="bg-[#f7f5f0] dark:bg-gray-950 text-[#2c2523] dark:text-[#f7f5f0] transition-colors duration-300">
         ${children}
       </body>
     </html>
