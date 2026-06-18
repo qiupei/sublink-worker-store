@@ -13,7 +13,7 @@ export const Navbar = ({ activeView = 'home' } = {}) => {
             <div class="max-w-[1500px] mx-auto px-4">
                 <div class="flex items-center justify-between h-16 gap-4">
                     <a href="/" class="flex items-center gap-2 text-base font-bold text-[#2c2523] dark:text-[#f7f5f0] hover:text-[#c21807] dark:hover:text-[#c21807] font-press-start tracking-tighter transition-colors">
-                        <img src="/favicon.ico" alt={`${APP_NAME} logo`} class="w-6 h-6 border-2 border-[#2c2523] dark:border-[#f7f5f0]" />
+                        <img src="/logo.png" alt={`${APP_NAME} logo`} class="w-6 h-6 border-2 border-[#2c2523] dark:border-[#f7f5f0]" />
                         <span class="text-sm sm:text-base">{APP_NAME}</span>
                     </a>
                     <div class="hidden sm:inline-flex items-center border-2 border-[#2c2523] dark:border-[#f7f5f0] bg-white dark:bg-gray-800 p-0.5 shadow-[2px_2px_0_#2c2523] dark:shadow-[2px_2px_0_#f7f5f0]">
