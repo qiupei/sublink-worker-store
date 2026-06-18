@@ -380,8 +380,8 @@ export const Form = (props) => {
 
       <div x-show="currentView === 'home'" class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)] gap-6 items-stretch flex-1 min-h-0 xl:h-full">
         <section class="flex flex-col min-h-0 xl:h-full xl:overflow-hidden min-w-0">
-          <div class="nes-card p-6 flex-1 flex flex-col min-h-0">
-            <div class="flex-1 xl:overflow-y-auto pr-1 space-y-6">
+          <div class="nes-card flex-1 flex flex-col min-h-0 p-0 overflow-hidden">
+            <div class="flex-1 xl:overflow-y-auto px-6 pt-6 pb-2 space-y-6">
               {/* Subscription Workspace */}
               <div class="space-y-4">
                 <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 mb-3">
@@ -613,7 +613,7 @@ export const Form = (props) => {
             </div>
 
             {/* Card Footer Actions */}
-            <div class="mt-6 pt-5 border-t-4 border-[#2c2523] dark:border-gray-700 flex flex-col sm:flex-row gap-3 shrink-0">
+            <div class="px-6 py-5 border-t-4 border-[#2c2523] dark:border-gray-700 flex flex-col sm:flex-row gap-3 shrink-0">
               <button
                 type="button"
                 x-on:click="generatePreview()"
@@ -627,9 +627,9 @@ export const Form = (props) => {
         </section>
 
         <aside class="flex flex-col min-h-0 xl:h-full xl:overflow-hidden min-w-0" x-data="{ copiedStable: null }">
-          <div class="nes-card p-6 flex-1 flex flex-col min-h-0">
+          <div class="nes-card flex-1 flex flex-col min-h-0 p-0 overflow-hidden">
             {/* Preview Header & Stats */}
-            <div class="shrink-0">
+            <div class="shrink-0 p-6 pb-0">
               <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-5">
                 <div>
                   <h2 class="text-base font-bold text-[#2c2523] dark:text-white flex items-center gap-2 font-pixel">
@@ -659,7 +659,7 @@ export const Form = (props) => {
             </div>
 
             {/* Scrollable Preview Content */}
-            <div class="flex-1 xl:overflow-y-auto pr-1 space-y-5">
+            <div class="flex-1 xl:overflow-y-auto px-6 py-4 space-y-5">
               <section>
                 <div class="flex items-center justify-between mb-3 font-pixel">
                   <h3 class="text-xs font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -762,7 +762,7 @@ export const Form = (props) => {
             </div>
 
             {/* Card Footer Actions */}
-            <div class="mt-6 pt-5 border-t-4 border-[#2c2523] dark:border-gray-700 flex flex-col sm:flex-row gap-3 shrink-0 font-pixel">
+            <div class="px-6 py-5 border-t-4 border-[#2c2523] dark:border-gray-700 flex flex-col sm:flex-row gap-3 shrink-0 font-pixel">
               <button
                 type="button"
                 x-on:click="saveSubscription()"
