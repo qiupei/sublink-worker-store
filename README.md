@@ -24,18 +24,6 @@
     <img src="https://vercel.com/button" alt="Deploy to Vercel" style="height: 32px;"/>
   </a>
 </p>
-
-  <h3>📚 Documentation</h3>
-  <p>
-    <a href="https://app.sublink.works"><b>⚡ Live Demo</b></a> ·
-    <a href="https://sublink.works/en/"><b>Documentation</b></a> 
-    <a href="https://sublink.works"><b>中文文档</b></a>·
-  </p>
-  <p>
-    <a href="https://sublink.works/guide/quick-start/">Quick Start</a> ·
-    <a href="https://sublink.works/api/">API Reference</a> ·
-    <a href="https://sublink.works/guide/faq/">FAQ</a>
-  </p>
 </div>
 
 ## 🖥️ Preview
@@ -77,6 +65,10 @@ Sing-Box • Clash • Xray/V2Ray • Surge
 ## 🤝 Contributing
 
 Issues and Pull Requests are welcome to improve this project.
+
+## 🙏 Acknowledgements
+
+This project is a secondary development (fork) based on the excellent open-source project [7Sageer/sublink-worker](https://github.com/7Sageer/sublink-worker). Sincere thanks to the original author and all contributors for their outstanding work.
 
 ## 📄 License
 
