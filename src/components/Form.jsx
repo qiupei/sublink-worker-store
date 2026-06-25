@@ -130,6 +130,21 @@ export const Form = (props) => {
 
   return (
     <div x-data="formData()" x-init="init()" class="w-full flex-1 flex flex-col min-h-0">
+      <div
+        x-cloak
+        x-show="toastMessage"
+        class="fixed right-4 top-4 z-[80] max-w-[min(92vw,360px)] border-4 border-[#2c2523] dark:border-[#f7f5f0] bg-white dark:bg-gray-950 shadow-[4px_4px_0_#2c2523] dark:shadow-[4px_4px_0_#f7f5f0] px-4 py-3 flex items-center gap-3 font-pixel"
+        x-bind:class="toastType === 'error' ? 'text-[#c21807]' : 'text-emerald-700 dark:text-emerald-300'"
+        role="status"
+      >
+        <span class="w-7 h-7 border-2 border-[#2c2523] dark:border-[#f7f5f0] flex items-center justify-center shrink-0"
+          x-bind:class="toastType === 'error' ? 'bg-[#c21807] text-white' : 'bg-emerald-600 text-white'"
+        >
+          <i class="fas text-xs" x-bind:class="toastType === 'error' ? 'fa-triangle-exclamation' : 'fa-check'"></i>
+        </span>
+        <span class="text-xs leading-5" x-text="toastMessage"></span>
+      </div>
+
       <template x-teleport="#navbar-auth">
         <div class="relative" {...{'x-on:click.outside': 'authMenuOpen = false'}}>
           {/* Logged in state */}
@@ -409,14 +424,6 @@ export const Form = (props) => {
 
                   <div class="flex items-center justify-between">
                     <h3 class="text-xs font-semibold text-[#2c2523] dark:text-white font-pixel">{t('shareUrls')}</h3>
-                    <button
-                      type="button"
-                      x-on:click="addSource()"
-                      class="nes-btn px-3 py-1.5 bg-white dark:bg-gray-800 text-[#2c2523] dark:text-[#f7f5f0] text-xs font-medium flex items-center gap-2"
-                    >
-                      <i class="fas fa-plus"></i>
-                      添加源
-                    </button>
                   </div>
 
                   <div class="space-y-3">
@@ -469,6 +476,15 @@ export const Form = (props) => {
                         </div>
                       </div>
                     </template>
+
+                    <button
+                      type="button"
+                      x-on:click="addSource()"
+                      class="nes-btn w-full px-3 py-1.5 bg-white dark:bg-gray-800 text-[#2c2523] dark:text-[#f7f5f0] text-xs font-medium flex items-center justify-center gap-2"
+                    >
+                      <i class="fas fa-plus"></i>
+                      添加源
+                    </button>
                   </div>
 
                   <div class="border-2 border-[#2c2523] dark:border-[#f7f5f0] bg-white dark:bg-gray-900/40 p-4 shadow-[2px_2px_0_#2c2523] dark:shadow-[2px_2px_0_#f7f5f0]">
@@ -564,7 +580,7 @@ export const Form = (props) => {
                               type="checkbox"
                               value={rule.name}
                               x-model="selectedRules"
-                              {...{'x-on:click.stop': ''}}
+                              {...{'x-on:click.stop': 'true'}}
                               x-on:change="selectedPredefinedRule = 'custom'"
                               class="mt-0.5 w-4 h-4 text-[#c21807] border-2 border-[#2c2523] dark:border-[#f7f5f0] focus:ring-0"
                             />
@@ -616,7 +632,7 @@ export const Form = (props) => {
             <div class="px-6 py-5 border-t-4 border-[#2c2523] dark:border-gray-700 flex flex-col sm:flex-row gap-3 shrink-0">
               <button
                 type="button"
-                x-on:click="generatePreview()"
+                x-on:click="generatePreview(true)"
                 class="nes-btn flex-1 px-4 py-3 bg-[#c21807] text-white hover:bg-red-700 font-semibold flex items-center justify-center gap-2"
               >
                 <i class="fas fa-wand-magic-sparkles text-sm"></i>
@@ -747,7 +763,7 @@ export const Form = (props) => {
                         />
                         <button
                           type="button"
-                          x-on:click={`navigator.clipboard.writeText(stableLinks?.${field.key}); copiedStable = '${field.key}'; setTimeout(() => copiedStable = null, 2000)`}
+                          x-on:click={`navigator.clipboard.writeText(stableLinks?.${field.key}).then(() => { copiedStable = '${field.key}'; showToast('订阅链接已复制'); setTimeout(() => copiedStable = null, 2000) })`}
                           class="nes-btn w-9 h-9 shrink-0 bg-white dark:bg-gray-800 text-[#2c2523] dark:text-[#f7f5f0] p-0 flex items-center justify-center"
                           x-bind:class={`{'bg-green-150': copiedStable === '${field.key}'}`}
                           title="复制链接"
@@ -775,6 +791,55 @@ export const Form = (props) => {
             </div>
           </div>
         </aside>
+      </div>
+
+      <div
+        x-cloak
+        x-show="pendingDeleteSourceId"
+        {...{'x-on:keydown.escape.window': 'cancelPendingDeleteSource()'}}
+        {...{'x-on:click.self': 'cancelPendingDeleteSource()'}}
+        class="fixed inset-0 z-50 flex items-center justify-center bg-[#2c2523]/70 dark:bg-black/75 px-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-source-title"
+      >
+        <div
+          x-show="pendingDeleteSourceId"
+          class="w-full max-w-md border-4 border-[#2c2523] dark:border-[#f7f5f0] bg-[#f7f5f0] dark:bg-gray-950 shadow-[8px_8px_0_#2c2523] dark:shadow-[8px_8px_0_#f7f5f0] font-pixel"
+        >
+          <div class="flex items-center gap-3 border-b-4 border-[#2c2523] dark:border-[#f7f5f0] bg-white dark:bg-gray-900 px-5 py-4">
+            <span class="w-9 h-9 border-2 border-[#2c2523] dark:border-[#f7f5f0] bg-[#c21807] text-white flex items-center justify-center shrink-0">
+              <i class="fas fa-trash text-sm"></i>
+            </span>
+            <div class="min-w-0">
+              <h3 id="delete-source-title" class="text-sm font-bold text-[#2c2523] dark:text-white">删除节点链接？</h3>
+              <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-1 truncate" x-text="pendingDeleteSourceName"></p>
+            </div>
+          </div>
+          <div class="px-5 py-5 space-y-4">
+            <p class="text-xs leading-6 text-[#2c2523] dark:text-[#f7f5f0]">
+              这个节点链接导入的节点已经全部删除，是否同时删除上方的节点链接？
+            </p>
+            <div class="flex flex-col sm:flex-row justify-end gap-3">
+              <button
+                type="button"
+                {...{'x-on:click.stop': 'cancelPendingDeleteSource()'}}
+                class="nes-btn px-4 py-2 bg-white dark:bg-gray-800 text-[#2c2523] dark:text-[#f7f5f0] flex items-center justify-center gap-2"
+              >
+                <i class="fas fa-link text-xs"></i>
+                保留链接
+              </button>
+              <button
+                type="button"
+                {...{'x-on:click.stop': 'confirmPendingDeleteSource()'}}
+                class="nes-btn px-4 py-2 bg-[#c21807] text-white hover:bg-red-700 flex items-center justify-center gap-2"
+              >
+                <i class="fas fa-trash text-xs"></i>
+                同时删除
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <script dangerouslySetInnerHTML={{ __html: scriptContent }} />

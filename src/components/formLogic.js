@@ -109,6 +109,11 @@ export const formLogicFn = (t) => {
             previewNodes: [],
             previewRules: [],
             previewPredefinedRule: 'balanced',
+            pendingDeleteSourceId: '',
+            pendingDeleteSourceName: '',
+            toastMessage: '',
+            toastType: 'success',
+            toastTimer: null,
             subconverterCopied: false,
             groupByCountry: false,
             includeAutoSelect: true,
@@ -148,6 +153,7 @@ export const formLogicFn = (t) => {
                 this.subscriptionName = localStorage.getItem('subscriptionName') || '';
                 this.sources = this.loadSavedSources(this.input);
                 this.managedNodes = this.loadSavedNodes();
+                this.reconcileManagedNodeSourceIds();
                 this.syncInputFromSources();
                 this.showAdvanced = localStorage.getItem('advancedToggle') === 'true';
                 this.groupByCountry = localStorage.getItem('groupByCountry') === 'true';
@@ -312,6 +318,31 @@ export const formLogicFn = (t) => {
                 };
             },
 
+            reconcileManagedNodeSourceIds() {
+                const sourceIds = new Set(this.sources.map(source => source?.id).filter(Boolean));
+                if (sourceIds.size === 0 || this.managedNodes.length === 0) return;
+
+                const hasValidSourceId = node => node?.sourceId && sourceIds.has(node.sourceId);
+                const unlinkedNodes = this.managedNodes.filter(node => !hasValidSourceId(node));
+                if (unlinkedNodes.length === 0) return;
+
+                if (this.sources.length === 1) {
+                    unlinkedNodes.forEach(node => {
+                        node.sourceId = this.sources[0].id;
+                    });
+                    return;
+                }
+
+                if (this.sources.length !== this.managedNodes.length) return;
+
+                this.managedNodes.forEach((node, index) => {
+                    const source = this.sources[index];
+                    if (!hasValidSourceId(node) && source?.id) {
+                        node.sourceId = source.id;
+                    }
+                });
+            },
+
             sortObjectKeys(value) {
                 if (Array.isArray(value)) return value.map(item => this.sortObjectKeys(item));
                 if (!value || typeof value !== 'object') return value;
@@ -386,9 +417,23 @@ export const formLogicFn = (t) => {
                 this.persistNodes();
             },
 
+            showToast(message, type = 'success') {
+                if (!message) return;
+                this.toastMessage = message;
+                this.toastType = type;
+                if (this.toastTimer) {
+                    clearTimeout(this.toastTimer);
+                }
+                this.toastTimer = setTimeout(() => {
+                    this.toastMessage = '';
+                    this.toastTimer = null;
+                }, 2200);
+            },
+
             addSource() {
                 this.sources.push(this.createEmptySource(this.sources.length));
                 this.persistSources();
+                this.showToast('已添加输入源');
             },
 
             removeSource(index) {
@@ -404,11 +449,13 @@ export const formLogicFn = (t) => {
                         error: ''
                     };
                     this.syncInputFromSources();
+                    this.showToast('节点链接已清空');
                     return;
                 }
                 this.managedNodes = this.managedNodes.filter(node => node.sourceId !== source.id);
                 this.sources.splice(index, 1);
                 this.syncInputFromSources();
+                this.showToast('输入源已删除');
             },
 
             moveSource(index, direction) {
@@ -417,6 +464,7 @@ export const formLogicFn = (t) => {
                 const [source] = this.sources.splice(index, 1);
                 this.sources.splice(nextIndex, 0, source);
                 this.syncInputFromSources();
+                this.showToast(direction < 0 ? '输入源已上移' : '输入源已下移');
             },
 
             handleSourceContentChange(index) {
@@ -545,6 +593,7 @@ export const formLogicFn = (t) => {
                 const url = links?.[type] || links?.clash;
                 if (!url) return;
                 navigator.clipboard.writeText(url).then(() => {
+                    this.showToast('订阅链接已复制');
                     if (subscriptionId) {
                         this.copiedSubscriptionId = subscriptionId;
                         setTimeout(() => {
@@ -659,6 +708,7 @@ export const formLogicFn = (t) => {
                     this.managedNodes = Array.isArray(subscription.nodes)
                         ? subscription.nodes.map((node, index) => this.normalizeManagedNode(node, index)).filter(Boolean)
                         : [];
+                    this.reconcileManagedNodeSourceIds();
                     const options = subscription.options || {};
                     this.selectedRules = Array.isArray(options.selectedRules) ? options.selectedRules : [];
                     this.selectedPredefinedRule = 'custom';
@@ -709,6 +759,7 @@ export const formLogicFn = (t) => {
                     this.subscriptionName = subscription.name;
                     this.stableLinks = this.buildStableLinks(subscription.token);
                     this.subscriptionMessage = isUpdate ? '订阅已更新' : '订阅已保存';
+                    this.showToast(isUpdate ? '订阅已更新' : '订阅已保存');
                     await this.loadSubscriptions();
                     this.generatePreview();
                 } catch (error) {
@@ -734,6 +785,7 @@ export const formLogicFn = (t) => {
                     this.subscriptionMessage = '订阅已删除';
                     this.resetSubscriptionDraft();
                     await this.loadSubscriptions();
+                    this.showToast('订阅已删除');
                 } catch (error) {
                     console.error('Failed to delete subscription:', error);
                     this.subscriptionMessage = `删除订阅失败：${error?.message || 'Unknown error'}`;
@@ -757,6 +809,7 @@ export const formLogicFn = (t) => {
                     }
                     this.subscriptionMessage = '订阅已删除';
                     await this.loadSubscriptions();
+                    this.showToast('订阅已删除');
                 } catch (error) {
                     console.error('Failed to delete subscription:', error);
                     this.subscriptionMessage = `删除订阅失败：${error?.message || 'Unknown error'}`;
@@ -798,6 +851,7 @@ export const formLogicFn = (t) => {
                     source.imported = true;
                     source.nodeCount = importedNodes.length;
                     this.subscriptionMessage = `已导入 ${importedNodes.length} 个节点`;
+                    this.showToast(`已导入 ${importedNodes.length} 个节点`);
                     this.syncInputFromSources();
                 } catch (error) {
                     console.error('Failed to parse source:', error);
@@ -832,11 +886,60 @@ export const formLogicFn = (t) => {
                 const [node] = this.managedNodes.splice(index, 1);
                 this.managedNodes.splice(nextIndex, 0, node);
                 this.syncInputFromSources();
+                this.showToast(direction < 0 ? '节点已上移' : '节点已下移');
             },
 
             removeNodeById(id) {
-                this.managedNodes = this.managedNodes.filter(node => node.id !== id);
+                const node = this.managedNodes.find(item => item.id === id);
+                if (!node) return;
+
+                const source = node.sourceId
+                    ? this.sources.find(item => item.id === node.sourceId)
+                    : null;
+
+                this.managedNodes = this.managedNodes.filter(item => item.id !== id);
+
+                if (source) {
+                    const remainingSourceNodes = this.managedNodes.filter(item => item.sourceId === source.id);
+                    source.nodeCount = remainingSourceNodes.length;
+                    source.imported = remainingSourceNodes.length > 0;
+                    source.error = '';
+
+                    if (remainingSourceNodes.length === 0 && this.getSourceKind(source) === 'node') {
+                        const sourceIndex = this.sources.findIndex(item => item.id === source.id);
+                        this.pendingDeleteSourceId = source.id;
+                        this.pendingDeleteSourceName = sourceIndex >= 0
+                            ? this.getSourceAutoName(source, sourceIndex)
+                            : '节点链接';
+                    }
+                }
+
+                if (this.sources.length === 0) {
+                    this.sources = [this.createEmptySource(0)];
+                }
                 this.syncInputFromSources();
+                this.showToast('节点已删除');
+            },
+
+            confirmPendingDeleteSource() {
+                const sourceId = this.pendingDeleteSourceId;
+                this.pendingDeleteSourceId = '';
+                this.pendingDeleteSourceName = '';
+
+                const sourceIndex = this.sources.findIndex(source => source.id === sourceId);
+                if (sourceIndex >= 0) {
+                    this.removeSource(sourceIndex);
+                    return;
+                }
+
+                this.syncInputFromSources();
+            },
+
+            cancelPendingDeleteSource() {
+                this.pendingDeleteSourceId = '';
+                this.pendingDeleteSourceName = '';
+                this.syncInputFromSources();
+                this.showToast('已保留节点链接');
             },
 
             get filteredManagedNodes() {
@@ -900,6 +1003,7 @@ export const formLogicFn = (t) => {
                 const url = this.getSubconverterUrl();
                 navigator.clipboard.writeText(url).then(() => {
                     this.subconverterCopied = true;
+                    this.showToast('配置地址已复制');
                     setTimeout(() => this.subconverterCopied = false, 2000);
                 }).catch(() => {});
             },
@@ -952,7 +1056,7 @@ export const formLogicFn = (t) => {
                     this.updateConfigIdInUrl(configId);
 
                     const successMessage = window.APP_TRANSLATIONS.saveConfigSuccess || 'Configuration saved successfully!';
-                    alert(`${successMessage}\nID: ${configId}`);
+                    this.showToast(`${successMessage} ID: ${configId}`);
                 } catch (error) {
                     console.error('Failed to save base config:', error);
                     const errorPrefix = this.configSaveFailedText || window.APP_TRANSLATIONS.configSaveFailed || 'Failed to save configuration';
@@ -979,16 +1083,19 @@ export const formLogicFn = (t) => {
                         this.configValidationState = 'success';
                         this.configValidationMessage =
                             window.APP_TRANSLATIONS.validYamlConfig || 'YAML config is valid';
+                        this.showToast('配置校验通过');
                     } else if (this.configType === 'surge') {
                         parseSurgeConfigInput(this.configEditor);
                         this.configValidationState = 'success';
                         this.configValidationMessage =
                             window.APP_TRANSLATIONS.validJsonConfig || 'JSON config is valid';
+                        this.showToast('配置校验通过');
                     } else {
                         JSON.parse(content);
                         this.configValidationState = 'success';
                         this.configValidationMessage =
                             window.APP_TRANSLATIONS.validJsonConfig || 'JSON config is valid';
+                        this.showToast('配置校验通过');
                     }
                 } catch (error) {
                     this.configValidationState = 'error';
@@ -1003,6 +1110,7 @@ export const formLogicFn = (t) => {
                     localStorage.removeItem('configEditor');
                     this.currentConfigId = '';
                     this.updateConfigIdInUrl(null);
+                    this.showToast('基础配置已清空');
                 }
             },
 
@@ -1103,7 +1211,7 @@ export const formLogicFn = (t) => {
 
                     // Show a success message
                     const message = window.APP_TRANSLATIONS?.urlParsedSuccess || '已成功解析订阅链接配置';
-                    console.log(message);
+                    this.showToast(message);
 
                 } catch (error) {
                     console.error('Error parsing subscription URL:', error);
@@ -1185,11 +1293,14 @@ export const formLogicFn = (t) => {
                 }
             },
 
-            generatePreview() {
+            generatePreview(showFeedback = false) {
                 this.previewSources = JSON.parse(JSON.stringify(this.sources));
                 this.previewNodes = JSON.parse(JSON.stringify(this.managedNodes));
                 this.previewRules = JSON.parse(JSON.stringify(this.selectedRules));
                 this.previewPredefinedRule = this.selectedPredefinedRule;
+                if (showFeedback) {
+                    this.showToast('预览已更新');
+                }
             }
         }
     }

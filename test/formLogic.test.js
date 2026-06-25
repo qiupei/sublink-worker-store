@@ -52,6 +52,18 @@ describe('formLogic toString fix', () => {
     expect(data.getSourceAutoName(data.sources[3], 3)).toBe('订阅链接 #2');
   });
 
+  it('stores toast feedback messages', () => {
+    const fakeWindow = { APP_TRANSLATIONS: {}, PREDEFINED_RULE_SETS: {} };
+    const fn = new Function('window', '(' + formLogicFn.toString() + ')(); return window;');
+    const result = fn(fakeWindow);
+    const data = result.formData();
+
+    data.showToast('已添加输入源');
+
+    expect(data.toastMessage).toBe('已添加输入源');
+    expect(data.toastType).toBe('success');
+  });
+
   it('removes managed nodes when their source is removed', () => {
     const fakeWindow = { APP_TRANSLATIONS: {}, PREDEFINED_RULE_SETS: {} };
     const fn = new Function('window', '(' + formLogicFn.toString() + ')(); return window;');
@@ -72,6 +84,30 @@ describe('formLogic toString fix', () => {
 
     expect(data.sources.map(source => source.id)).toEqual(['source-a']);
     expect(data.managedNodes.map(node => node.id)).toEqual(['node-a']);
+  });
+
+  it('links legacy managed nodes to sources by order before source removal', () => {
+    const fakeWindow = { APP_TRANSLATIONS: {}, PREDEFINED_RULE_SETS: {} };
+    const fn = new Function('window', '(' + formLogicFn.toString() + ')(); return window;');
+    const result = fn(fakeWindow);
+    const data = result.formData();
+    data.syncInputFromSources = () => {};
+
+    data.sources = [
+      { id: 'source-a', content: 'vless://a' },
+      { id: 'source-b', content: 'vmess://b' }
+    ];
+    data.managedNodes = [
+      { id: 'node-a', sourceId: '', name: 'A', type: 'vless', proxy: { type: 'vless', tag: 'A' } },
+      { id: 'node-b', sourceId: '', name: 'B', type: 'vmess', proxy: { type: 'vmess', tag: 'B' } }
+    ];
+
+    data.reconcileManagedNodeSourceIds();
+    data.removeSource(1);
+
+    expect(data.sources.map(source => source.id)).toEqual(['source-a']);
+    expect(data.managedNodes.map(node => node.id)).toEqual(['node-a']);
+    expect(data.managedNodes[0].sourceId).toBe('source-a');
   });
 
   it('clears managed nodes when the only source is cleared', () => {
@@ -95,6 +131,107 @@ describe('formLogic toString fix', () => {
       { id: 'source-a', content: '', imported: false, nodeCount: 0, error: '' }
     ]);
     expect(data.managedNodes).toEqual([]);
+  });
+
+  it('removes source when deleting the last managed node and confirmed', () => {
+    const fakeWindow = { APP_TRANSLATIONS: {}, PREDEFINED_RULE_SETS: {} };
+    const fn = new Function('window', '(' + formLogicFn.toString() + ')(); return window;');
+    const result = fn(fakeWindow);
+    const data = result.formData();
+    data.syncInputFromSources = () => {};
+
+    data.sources = [
+      { id: 'source-a', content: 'vless://a', imported: true, nodeCount: 1, error: '' },
+      { id: 'source-b', content: 'vmess://b', imported: true, nodeCount: 1, error: '' }
+    ];
+    data.managedNodes = [
+      { id: 'node-a', sourceId: 'source-a' },
+      { id: 'node-b', sourceId: 'source-b' }
+    ];
+
+    data.removeNodeById('node-b');
+    expect(data.pendingDeleteSourceId).toBe('source-b');
+
+    data.confirmPendingDeleteSource();
+
+    expect(data.sources.map(source => source.id)).toEqual(['source-a']);
+    expect(data.managedNodes.map(node => node.id)).toEqual(['node-a']);
+    expect(data.pendingDeleteSourceId).toBe('');
+  });
+
+  it('clears the only source when deleting its last managed node and confirmed', () => {
+    const fakeWindow = { APP_TRANSLATIONS: {}, PREDEFINED_RULE_SETS: {} };
+    const fn = new Function('window', '(' + formLogicFn.toString() + ')(); return window;');
+    const result = fn(fakeWindow);
+    const data = result.formData();
+    data.syncInputFromSources = () => {};
+
+    data.sources = [
+      { id: 'source-a', content: 'vless://a', imported: true, nodeCount: 1, error: '' }
+    ];
+    data.managedNodes = [
+      { id: 'node-a', sourceId: 'source-a' }
+    ];
+
+    data.removeNodeById('node-a');
+    expect(data.pendingDeleteSourceId).toBe('source-a');
+
+    data.confirmPendingDeleteSource();
+
+    expect(data.sources).toEqual([
+      { id: 'source-a', content: '', imported: false, nodeCount: 0, error: '' }
+    ]);
+    expect(data.managedNodes).toEqual([]);
+    expect(data.pendingDeleteSourceId).toBe('');
+  });
+
+  it('keeps source when deleting the last managed node and cancelled', () => {
+    const fakeWindow = { APP_TRANSLATIONS: {}, PREDEFINED_RULE_SETS: {} };
+    const fn = new Function('window', '(' + formLogicFn.toString() + ')(); return window;');
+    const result = fn(fakeWindow);
+    const data = result.formData();
+    data.syncInputFromSources = () => {};
+
+    data.sources = [
+      { id: 'source-a', content: 'vless://a', imported: true, nodeCount: 1, error: '' }
+    ];
+    data.managedNodes = [
+      { id: 'node-a', sourceId: 'source-a' }
+    ];
+
+    data.removeNodeById('node-a');
+    expect(data.pendingDeleteSourceId).toBe('source-a');
+
+    data.cancelPendingDeleteSource();
+
+    expect(data.sources).toEqual([
+      { id: 'source-a', content: 'vless://a', imported: false, nodeCount: 0, error: '' }
+    ]);
+    expect(data.managedNodes).toEqual([]);
+    expect(data.pendingDeleteSourceId).toBe('');
+  });
+
+  it('does not remove subscription source when its last managed node is deleted', () => {
+    const fakeWindow = { APP_TRANSLATIONS: {}, PREDEFINED_RULE_SETS: {} };
+    const fn = new Function('window', '(' + formLogicFn.toString() + ')(); return window;');
+    const result = fn(fakeWindow);
+    const data = result.formData();
+    data.syncInputFromSources = () => {};
+
+    data.sources = [
+      { id: 'source-a', content: 'https://example.com/sub', imported: true, nodeCount: 1, error: '' }
+    ];
+    data.managedNodes = [
+      { id: 'node-a', sourceId: 'source-a' }
+    ];
+
+    data.removeNodeById('node-a');
+
+    expect(data.sources).toEqual([
+      { id: 'source-a', content: 'https://example.com/sub', imported: false, nodeCount: 0, error: '' }
+    ]);
+    expect(data.managedNodes).toEqual([]);
+    expect(data.pendingDeleteSourceId).toBe('');
   });
 
   it('keeps renamed nodes when the same source is imported again', () => {

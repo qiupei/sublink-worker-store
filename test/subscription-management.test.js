@@ -196,4 +196,45 @@ describe('Subscription management API', () => {
         const missingRes = await app.request('http://localhost/sub/not-found/clash');
         expect(missingRes.status).toBe(404);
     });
+
+    it('preserves sourceId for nodes in saved subscription', async () => {
+        const app = createTestApp();
+        const cookie = await registerAndGetCookie(app);
+
+        const node = {
+            id: 'node-1',
+            sourceId: 'source-1',
+            name: 'Test Node',
+            type: 'ss',
+            proxy: {
+                tag: 'Test Node',
+                type: 'ss',
+                server: '1.1.1.1',
+                port: 8388,
+                method: 'aes-256-gcm',
+                password: 'pwd'
+            }
+        };
+
+        const createRes = await app.request('http://localhost/api/subscriptions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: cookie },
+            body: JSON.stringify(createSubscriptionPayload({
+                nodes: [node]
+            }))
+        });
+        expect(createRes.status).toBe(201);
+        const created = (await createRes.json()).subscription;
+        expect(created.nodes).toHaveLength(1);
+        expect(created.nodes[0].sourceId).toBe('source-1');
+
+        // Also test fetching the subscription directly
+        const getRes = await app.request(`http://localhost/api/subscriptions/${created.id}`, {
+            headers: { Cookie: cookie }
+        });
+        expect(getRes.status).toBe(200);
+        const fetched = (await getRes.json()).subscription;
+        expect(fetched.nodes).toHaveLength(1);
+        expect(fetched.nodes[0].sourceId).toBe('source-1');
+    });
 });

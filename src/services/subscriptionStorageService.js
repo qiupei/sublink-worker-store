@@ -111,6 +111,7 @@ function normalizeNodes(value) {
             proxy.tag = name;
             return {
                 id: normalizeString(node.id, `node_${generateWebPath(8)}`),
+                sourceId: normalizeString(node.sourceId),
                 name,
                 type: normalizeString(node.type || proxy.type),
                 enabled: node.enabled !== false,
